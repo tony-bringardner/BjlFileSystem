@@ -21,7 +21,7 @@
  *	@author Tony Bringardner   
  *
  *
- * ~version~V000.01.14-V000.01.11-V000.01.02-V000.01.01-V000.00.01-V000.00.00-
+ * ~version~V000.01.00-V000.01.14-V000.01.11-V000.01.02-V000.01.01-V000.00.01-V000.00.00-
  */
 package us.bringardner.io.filesource.test;
 
@@ -37,7 +37,7 @@ import us.bringardner.io.filesource.FileSourceFactory;
 
 
 
-class FileSourceCoreTest  {
+public class FileSourceCoreTest  {
 
 	@Test
 	public void testExpandDots() throws IOException {
