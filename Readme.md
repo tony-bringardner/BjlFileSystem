@@ -1,6 +1,6 @@
 # BjlFileSystem
  
-This project defines an Interface called **FileSource** that looks very much like **java.io.File** but enables multiple implementations to coexists in a runtime environment (i,e, FTP, SFTP, ...).  This will allow the same application code to use many different types (implementations) without the knowledge at compile time.
+This project defines an Interface called **FileSource** that looks very much like **java.io.File** but enables multiple implementations to coexists in a runtime environment (FTP, SFTP, ...).  This will allow the same application code to use many different types (implementations) without the knowledge at compile time.
 
 The objective here was to provide something with syntax close enough java.io.File that it would not require significant effort to convert back and forth from java.io.File.  
 
