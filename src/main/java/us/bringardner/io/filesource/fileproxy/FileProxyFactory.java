@@ -170,6 +170,7 @@ public class FileProxyFactory extends FileSourceFactory {
 		if( getCurrentDirectory() != null && !file.isAbsolute()) {
 			file = new File(((FileProxy) currentDirectory).target,fullPath);
 		}
+		file = file.getCanonicalFile();
 		return new FileProxy(file,this);
 	}
 
