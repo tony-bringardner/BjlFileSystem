@@ -306,12 +306,14 @@ public abstract class FileSourceAbstractTestClass {
 			FileSource remoteParent = remoteFile.getParentFile();
 			
 			FileSource renamedFile = remoteParent.getChild(fileName+".changed");
-			assertTrue(remoteFile.renameTo(renamedFile),"Can't rename "+remoteFile+" to "+renamedFile);
 			
+			renameAndValidate(remoteFile,renamedFile);
+						
 			compare(fileName, localFile, renamedFile);
-			assertTrue(renamedFile.exists(),"New file does not exist after rename");
-			assertFalse(remoteFile.exists(),"remoteFile still exists after rename");
-			assertTrue(renamedFile.renameTo(remoteFile),"Can't rename back to original. "+renamedFile+" to "+remoteFile);
+			
+			renameAndValidate(renamedFile,remoteFile);
+			
+			
 			compare(fileName, localFile, remoteFile);
 			
 		}
@@ -323,6 +325,18 @@ public abstract class FileSourceAbstractTestClass {
 		deleteAll(remoteDir);
 		traverseDir(remoteDir, null);
 
+	}
+
+	private void renameAndValidate(FileSource source, FileSource target) throws IOException {
+		assertTrue(
+				source.renameTo(target)
+				,"Can't rename "+source+" to "+target);			
+		assertTrue(
+				target.exists()
+				,"New file does not exist after rename");
+		assertFalse(
+				source.exists()
+				,"remoteFile still exists after rename");		
 	}
 
 
