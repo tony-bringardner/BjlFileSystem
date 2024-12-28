@@ -112,7 +112,10 @@ public abstract class FileSourceAbstractTestClass {
 
 	public static void compare(String name,FileSource source, FileSource target) throws IOException {
 		assertTrue("Source file does not exist ("+source.getName()+")",source.exists());
-		assertTrue("Target file does not exist ("+target.getName()+")",target.exists());
+		assertTrue("Target file does not exist ("+
+		target.getName()+")",
+		target.exists()
+		);
 
 		assertEquals(name+" are not the same type",source.isDirectory(), target.isDirectory());
 
@@ -232,14 +235,17 @@ public abstract class FileSourceAbstractTestClass {
 		FileSource remoteDir = factory.createFileSource(remoteTestFileDirPath);
 		traverseDir(remoteDir, null);
 		if( !remoteDir.exists()) {
-			remoteDir.mkdir();
+			assertTrue("Cannot create remote directory"+remoteDir,
+					remoteDir.mkdirs()
+					);			
 		}
 		traverseDir(remoteDir, null);
 
 
 
 		for(FileSource source : cacheDir.listFiles()) {
-			FileSource dest = remoteDir.getChild(source.getName());
+			String nm = source.getName();
+			FileSource dest = remoteDir.getChild(nm);
 			copy(source, dest);
 			compare("Copy to remote dir", source, dest);			
 		}

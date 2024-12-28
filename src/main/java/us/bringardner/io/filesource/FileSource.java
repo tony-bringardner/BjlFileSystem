@@ -443,8 +443,6 @@ public interface FileSource extends Serializable, Comparable<Object> {
 
 	public abstract void refresh() throws IOException;
 
-	public abstract boolean renameTo(String s) throws IOException;
-
 	public abstract String getTitle() throws IOException;
 
 	public abstract FileSource[] listFiles(ProgressMonitor progress) throws IOException;

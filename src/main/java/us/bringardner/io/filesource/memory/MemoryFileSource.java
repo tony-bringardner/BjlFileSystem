@@ -727,13 +727,6 @@ public class MemoryFileSource implements FileSource {
 
 	}
 
-
-	@Override
-	public boolean renameTo(String path) {
-		//TODO: implement rename
-		return false;
-	}
-
 	@Override
 	public String getTitle() {
 		return "Memory";

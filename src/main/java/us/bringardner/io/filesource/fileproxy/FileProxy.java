@@ -662,16 +662,7 @@ public class FileProxy implements FileSource {
 		return target;
 	}
 
-	@Override
-	public boolean renameTo(String s) {
-		File to = new File(s);
-		if( target.renameTo(to) ) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
+	
 	@Override
 	public String getTitle() {
 		return "Local";
