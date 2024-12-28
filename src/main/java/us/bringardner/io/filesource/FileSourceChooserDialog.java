@@ -852,7 +852,7 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 		northPanel.add(menuBar, BorderLayout.WEST);
 
 		mainMenu = new JMenu("");
-		mainMenu.setIcon(new ImageIcon(FileSourceChooserDialog.class.getResource("/com/bringardner/io/filesource/fileproxy/images/HamburgerMenu_20_black.png")));
+		mainMenu.setIcon(new ImageIcon(FileSourceChooserDialog.class.getResource("/HamburgerMenu_20_black.png")));
 		menuBar.add(mainMenu);
 
 		JCheckBoxMenuItem chckbxmntmNewCheckItem = new JCheckBoxMenuItem("Show Hidden Files",showHiddenFiles);
