@@ -332,8 +332,9 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 					switch (op1) {
 					case WRITE: break;  
 					case APPEND:append = true; break;
+					case CREATE_NEW: break;
 					case CREATE:
-					case CREATE_NEW:
+					
 					case DELETE_ON_CLOSE:
 					case DSYNC:					
 					case SPARSE:
@@ -502,7 +503,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		validate(dir);
 		FileSource file = ((FileSourcePath)dir).getFileSource();
 
-		if(!file.mkdir()) {
+		if(!file.mkdirs()) {
 			throw new ProviderException("Could not create directory for "+dir);
 		}
 
