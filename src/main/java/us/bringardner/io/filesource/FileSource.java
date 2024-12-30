@@ -81,7 +81,9 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * @return true if and only if the file system actually contains a file denoted by this abstract pathname and the application is allowed to write to the file; false otherwise.  
 	 * @throws IOException 
 	 */
-	public boolean canRead() throws IOException ;
+	default public boolean canRead() throws IOException {
+		return canOwnerRead();
+	}
 
 	/**
 	 * Tests whether the application can modify the file denoted by this abstract pathname. 
@@ -90,43 +92,27 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * @return
 	 * @throws IOException 
 	 */
-	public boolean canWrite() throws IOException ;
-
-	default boolean canOwnerRead() throws IOException {
-		return canRead();
+	default public boolean canWrite() throws IOException {
+		return canOwnerWrite();
 	}
 
-	default boolean canOwnerWrite() throws IOException {
-		return canWrite();
-	}
+	boolean canOwnerRead() throws IOException ;
 
-	default boolean canOwnerExecute() throws IOException {
-		return false;
-	}
+	boolean canOwnerWrite() throws IOException ;
 
-	default boolean canGroupRead() throws IOException {
-		return canRead();
-	}
+	boolean canOwnerExecute() throws IOException ;
 
-	default boolean canGroupWrite() throws IOException {
-		return canWrite();
-	}
+	boolean canGroupRead() throws IOException ;
 
-	default boolean canGroupExecute() throws IOException {
-		return false;
-	}
+	boolean canGroupWrite() throws IOException ;
 
-	default boolean canOtherRead() throws IOException {
-		return canRead();
-	}
+	boolean canGroupExecute() throws IOException;
 
-	default boolean canOtherWrite() throws IOException {
-		return canWrite();
-	}
+	boolean canOtherRead() throws IOException ;
+	
+	boolean canOtherWrite() throws IOException ;
 
-	default boolean canOtherExecute() throws IOException {
-		return false;
-	}
+	boolean canOtherExecute() throws IOException;
 
 	/*
 	 * Atomically creates a new, empty file named by this abstract pathname if 
@@ -290,113 +276,96 @@ public interface FileSource extends Serializable, Comparable<Object> {
 
 	public boolean renameTo(FileSource dest)  throws IOException ;
 
-	public default void setLastModifiedTime(long time) throws IOException {}
+	public boolean setLastModifiedTime(long time) throws IOException;
 	
-	public default void setLastAccessTime(long time) throws IOException{}
+	public boolean setLastAccessTime(long time) throws IOException;
 	
-	public default void setCreateTime(long time) throws IOException{}
+	public boolean setCreateTime(long time) throws IOException;
 
 	/**
 	 * Set access permission for the file owner
 	 * @param c
 	 * @throws IOException 
 	 */
-	public void  setExecutable(boolean b) throws IOException;
+	public boolean  setExecutable(boolean b) throws IOException;
+	
 	/**
 	 * Set access permission for the file owner
 	 * @param b
 	 * @throws IOException 
 	 */
-	public void setReadable(boolean b) throws IOException;
+	public boolean setReadable(boolean b) throws IOException;
 	/**
 	 * Set access permission for the file owner
 	 * @param b
 	 * @throws IOException 
 	 */
-	public void setWritable(boolean b) throws IOException;
+	public boolean setWritable(boolean b) throws IOException;
 
-	public void  setExecutable(boolean b, boolean  ownerOnly)throws IOException;
-	public void setReadable(boolean b, boolean  ownerOnly)throws IOException;
-	public void setWritable(boolean b, boolean  ownerOnly) throws IOException;
-
-	/**
-	 * Set access permission for the file owner
-	 * @param c
-	 * @throws IOException 
-	 */
-	default void setOwnerExecutable(boolean b) throws IOException  {
-		setExecutable(b);
-	}
-	/**
-	 * Set access permission for the file owner
-	 * @param c
-	 * @throws IOException 
-	 */
-
-	default void setOwnerReadable(boolean b) throws IOException {
-		setReadable(b);
-	}
+	public boolean setExecutable(boolean b, boolean  ownerOnly)throws IOException;
+	public boolean setReadable(boolean b, boolean  ownerOnly)throws IOException;
+	public boolean setWritable(boolean b, boolean  ownerOnly) throws IOException;
 
 	/**
 	 * Set access permission for the file owner
 	 * @param c
 	 * @throws IOException 
 	 */
-	default void setOwnerWritable(boolean b) throws IOException {
-		setWritable(b);
-	}
+	boolean setOwnerExecutable(boolean b) throws IOException ;
+	/**
+	 * Set access permission for the file owner
+	 * @param c
+	 * @throws IOException 
+	 */
+
+	boolean setOwnerReadable(boolean b) throws IOException;
+
+	/**
+	 * Set access permission for the file owner
+	 * @param c
+	 * @throws IOException 
+	 */
+	boolean setOwnerWritable(boolean b) throws IOException ;
 	/**
 	 * Set access permission for the file group
 	 * @param c
 	 * @throws IOException 
 	 */
-	default void setGroupExecutable(boolean b) throws IOException {
-
-	}
-
+	boolean setGroupExecutable(boolean b) throws IOException;
 	/**
 	 * Set access permission for the file group
 	 * @param c
 	 * @throws IOException 
 	 */
-	default void setGroupReadable(boolean b) throws IOException {
-
-	}
-
+	boolean setGroupReadable(boolean b) throws IOException ;
+	
 	/**
 	 * Set access permission for the file group
 	 * @param c
 	 * @throws IOException 
 	 */
-	default void setGroupWritable(boolean b) throws IOException {
-
-	}
+	boolean setGroupWritable(boolean b) throws IOException ;
+	
 	/**
 	 * Set access permission for anyone other the file owner and group group
 	 * @param c
 	 * @throws IOException 
 	 */
-	default void setOtherExecutable(boolean b) throws IOException {
-
-	}
-
+	boolean setOtherExecutable(boolean b) throws IOException ;
+	
 	/**
 	 * Set access permission for anyone other the file owner and group group
 	 * @param c
 	 * @throws IOException 
 	 */
-	default void setOtherReadable(boolean b) throws IOException {
-
-	}
+	boolean setOtherReadable(boolean b) throws IOException ;
+	
 	/**
 	 * Set access permission for anyone other the file owner and group group
 	 * @param c
 	 * @throws IOException 
 	 */
-	default void setOtherWritable(boolean b) throws IOException {
-
-	}
-
+	boolean setOtherWritable(boolean b) throws IOException ;
 
 	/*
 	 * Marks the file or directory named by this abstract pathname 
@@ -426,8 +395,8 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	public boolean isVersionSupported()  throws IOException ;
 	public long getVersion()  throws IOException ;
 	public long getVersionDate() throws IOException;
-	public void setVersionDate(long time)  throws IOException ;
-	public void setVersion(long version, boolean saveChange) throws IOException;
+	public boolean setVersionDate(long time)  throws IOException ;
+	public boolean setVersion(long version, boolean saveChange) throws IOException;
 
 	/**
 	 * @return
@@ -453,15 +422,11 @@ public interface FileSource extends Serializable, Comparable<Object> {
 
 	public abstract GroupPrincipal getGroup() throws IOException;
 	
-	public default void setGroup(GroupPrincipal group) throws IOException {
-		// not supported by implementer 
-	}
+	public boolean setGroup(GroupPrincipal group) throws IOException ;
 	
 	public abstract UserPrincipal getOwner() throws IOException;
 	
-	public default  void setOwner(UserPrincipal owner) throws IOException {
-		// not supported by implementer
-	};
+	public boolean setOwner(UserPrincipal owner) throws IOException ;
 
 
 

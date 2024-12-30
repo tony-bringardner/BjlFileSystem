@@ -393,8 +393,9 @@ public class MemoryFileSource implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#setLastModified(long)
 	 */
-	public void setLastModified(long time) {
+	public boolean setLastModifiedTime(long time) {
 		lastModified = time;
+		return true;
 	}
 
 	/* (non-Javadoc)
@@ -663,17 +664,15 @@ public class MemoryFileSource implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#setVersionDate()
 	 */
-	public void setVersionDate(long time) {
-		// Just update the modification date
-		setLastModified(time);
-
+	public boolean setVersionDate(long time) {
+		return false;
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#setVersion(long, boolean)
 	 */
-	public void setVersion(long version, boolean saveChange) {
-		//  Nothing to do 
+	public boolean setVersion(long version, boolean saveChange) {
+		return false; 
 	}
 
 	/* (non-Javadoc)
@@ -840,79 +839,93 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	@Override
-	public void setExecutable(boolean b) {
+	public boolean setExecutable(boolean b) {
 		canExecute = true;
-
+		return true;
 	}
 
 	@Override
-	public void setReadable(boolean b) {
+	public boolean setReadable(boolean b) {
 		canRead = b;
+		return true;
 	}
 
 	@Override
-	public void setWritable(boolean b) {
+	public boolean setWritable(boolean b) {
 		canWrite = b;
-
+		return true;
 	}
 
 	@Override
-	public void setExecutable(boolean b, boolean ownerOnly) {
+	public boolean setExecutable(boolean b, boolean ownerOnly) {
 		canExecute =b;
 		canOtherExecute = canGroupExecute == !ownerOnly;
+		return true;
 	}
 
 	@Override
-	public void setReadable(boolean b, boolean ownerOnly) {
+	public boolean setReadable(boolean b, boolean ownerOnly) {
 		canRead = b;
 		canOtherRead = canGroupRead == !ownerOnly;
-
+		return true;
 	}
 
 	@Override
-	public void setWritable(boolean b, boolean ownerOnly) {
+	public boolean setWritable(boolean b, boolean ownerOnly) {
 		setWritable(b);
 		canOtherWrite = canGroupWrite == !ownerOnly;
+		return true;
 	}
 
 	@Override
-	public void setOwnerReadable(boolean b) throws IOException {
+	public boolean setOwnerReadable(boolean b) throws IOException {
 		canRead = b;
+		return true;
 	}
 
 	@Override
-	public void setOtherWritable(boolean b) throws IOException {
+	public boolean setOtherWritable(boolean b) throws IOException {
 		canOtherWrite = b;
+		return true;
 	}
 
 	@Override
-	public void setOwnerWritable(boolean b) throws IOException {
+	public boolean setOwnerWritable(boolean b) throws IOException {
 		canWrite = b;
+		return true;
 	}
 
 	@Override
-	public void setGroupExecutable(boolean b) throws IOException {
+	public boolean setGroupExecutable(boolean b) throws IOException {
 		canGroupExecute = b;
+		return true;
 	}
 	@Override
-	public void setGroupReadable(boolean b) throws IOException {
+	public boolean setGroupReadable(boolean b) throws IOException {
 		canGroupRead = b;
+		return true;
 	}
+	
 	@Override
-	public void setGroupWritable(boolean b) throws IOException {
+	public boolean setGroupWritable(boolean b) throws IOException {
 		canGroupWrite = b;
+		return true;
 	}
+	
 	@Override
-	public void setOtherExecutable(boolean b) throws IOException {
+	public boolean setOtherExecutable(boolean b) throws IOException {
 		canOtherExecute = b;
+		return true;
 	}
 	@Override
-	public void setOtherReadable(boolean b) throws IOException {
+	public boolean setOtherReadable(boolean b) throws IOException {
 		canOtherRead = b;
+		return true;
 	}
 	@Override
-	public void setOwnerExecutable(boolean b) throws IOException {
+	public boolean setOwnerExecutable(boolean b) throws IOException {
 		canExecute = b;
+		return true;
 	}
 
 	@Override
@@ -923,6 +936,31 @@ public class MemoryFileSource implements FileSource {
 	@Override
 	public long creationTime() throws IOException {
 		return createDate;
+	}
+
+	
+	@Override
+	public boolean setLastAccessTime(long time) throws IOException {
+		lastAccessed = time;
+		return true;
+	}
+
+	@Override
+	public boolean setCreateTime(long time) throws IOException {
+		createDate = time;
+		return true;
+	}
+
+	@Override
+	public boolean setGroup(GroupPrincipal group) throws IOException {
+		this.group = group;
+		return true;
+	}
+
+	@Override
+	public boolean setOwner(UserPrincipal owner) throws IOException {
+		this.owner = owner;
+		return true;
 	}
 
 }

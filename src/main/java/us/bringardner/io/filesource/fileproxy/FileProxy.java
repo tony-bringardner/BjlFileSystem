@@ -93,7 +93,7 @@ public class FileProxy implements FileSource {
 	}
 
 
-	private void setPosixPermision(boolean b, PosixFilePermission p) throws IOException {
+	private boolean setPosixPermision(boolean b, PosixFilePermission p) throws IOException {
 		Set<PosixFilePermission> perms = getPosixPermissions();
 		
 		if(b) {
@@ -106,7 +106,9 @@ public class FileProxy implements FileSource {
 				perms.remove(p);
 				Files.setPosixFilePermissions(target.toPath(), perms);
 			}
-		}		
+		}	
+		// no errors so I assume it worked
+		return true;
 	}
 
 	/* (non-Javadoc)
@@ -394,9 +396,10 @@ public class FileProxy implements FileSource {
 	 * @see us.bringardner.io.FileSource#setLastModified(long)
 	 */
 	@Override
-	public void setLastModifiedTime(long time) {
-		target.setLastModified(time);		
+	public boolean setLastModifiedTime(long time) {
+		return target.setLastModified(time);		
 	}
+	
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#setReadOnly()
@@ -608,24 +611,23 @@ public class FileProxy implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#setVersionDate()
 	 */
-	public void setVersionDate(long time) {
+	public boolean setVersionDate(long time) {
 		// Just update the modification date
-		setLastModifiedTime(time);
+		return setLastModifiedTime(time);
 
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#setVersion(long, boolean)
 	 */
-	public void setVersion(long version, boolean saveChange) {
-		//  Nothing to do 
+	public boolean setVersion(long version, boolean saveChange) {
+		return false; 
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#getMaxVersion()
 	 */
 	public long getMaxVersion() {
-
 		return 0;
 	}
 
@@ -716,95 +718,92 @@ public class FileProxy implements FileSource {
 
 
 	@Override
-	public void setExecutable(boolean executable, boolean ownerOnly) {
-		target.setExecutable(executable, ownerOnly);		
+	public boolean setExecutable(boolean executable, boolean ownerOnly) {
+		return target.setExecutable(executable, ownerOnly);		
 	}
 
 
 
 	@Override
-	public void setReadable(boolean readable, boolean ownerOnly) {
-		target.setReadable(readable, ownerOnly);
+	public boolean setReadable(boolean readable, boolean ownerOnly) {
+		return target.setReadable(readable, ownerOnly);
 		
 	}
 
 
 
 	@Override
-	public void setWritable(boolean writetable, boolean ownerOnly) {
-		target.setWritable(writetable, ownerOnly);
+	public boolean setWritable(boolean writetable, boolean ownerOnly) {
+		return target.setWritable(writetable, ownerOnly);
 		
 	}
 
 
 
 	@Override
-	public void setExecutable(boolean executable)  throws IOException {
-		target.setExecutable(executable);
+	public boolean setExecutable(boolean executable)  throws IOException {
+		return target.setExecutable(executable);
 		
 	}
 
 
 
 	@Override
-	public void setReadable(boolean readable) throws IOException {
-		target.setReadable(readable);
+	public boolean setReadable(boolean readable) throws IOException {
+		return target.setReadable(readable);
 		
 	}
 
 
 
 	@Override
-	public void setWritable(boolean writetable)  throws IOException {
-		target.setWritable(writetable);		
+	public boolean setWritable(boolean writetable)  throws IOException {
+		return target.setWritable(writetable);		
 	}
 
 	@Override
-	public void setGroupExecutable(boolean executable) throws IOException {
-		setPosixPermision(executable, PosixFilePermission.GROUP_EXECUTE);		
+	public boolean setGroupExecutable(boolean executable) throws IOException {
+		return setPosixPermision(executable, PosixFilePermission.GROUP_EXECUTE);		
 	}
 	
 	@Override
-	public void setGroupReadable(boolean readable) throws IOException {
-		setPosixPermision(readable, PosixFilePermission.GROUP_READ);
+	public boolean setGroupReadable(boolean readable) throws IOException {
+		return setPosixPermision(readable, PosixFilePermission.GROUP_READ);
 	}
 	
 	@Override
-	public void setGroupWritable(boolean writeable) throws IOException {
-		setPosixPermision(writeable, PosixFilePermission.GROUP_WRITE);
+	public boolean setGroupWritable(boolean writeable) throws IOException {
+		return setPosixPermision(writeable, PosixFilePermission.GROUP_WRITE);
 	}
 	
 	@Override
-	public void setOwnerReadable(boolean readable) throws IOException {
-		setReadable(readable);
+	public boolean setOwnerReadable(boolean readable) throws IOException {
+		return setReadable(readable);
 	}
 	
 	@Override
-	public void setOwnerWritable(boolean writeable) throws IOException {
-		setWritable(writeable);
+	public boolean setOwnerWritable(boolean writeable) throws IOException {
+		return setWritable(writeable);
 	}
 	
 	@Override
-	public void setOwnerExecutable(boolean executable) throws IOException {		
-		setExecutable(executable);
+	public boolean setOwnerExecutable(boolean executable) throws IOException {		
+		return setExecutable(executable);
 	}
 	
 	@Override
-	public void setOtherReadable(boolean readable) throws IOException {
-		setPosixPermision(readable,PosixFilePermission.OTHERS_READ);
-	}
-	
-	
-
-
-	@Override
-	public void setOtherWritable(boolean writeable) throws IOException {
-		setPosixPermision(writeable,PosixFilePermission.OTHERS_WRITE);
+	public boolean setOtherReadable(boolean readable) throws IOException {
+		return setPosixPermision(readable,PosixFilePermission.OTHERS_READ);
 	}
 	
 	@Override
-	public void setOtherExecutable(boolean executable) throws IOException {
-		setPosixPermision(executable,PosixFilePermission.OTHERS_EXECUTE);
+	public boolean setOtherWritable(boolean writeable) throws IOException {
+		return setPosixPermision(writeable,PosixFilePermission.OTHERS_WRITE);
+	}
+	
+	@Override
+	public boolean setOtherExecutable(boolean executable) throws IOException {
+		return setPosixPermision(executable,PosixFilePermission.OTHERS_EXECUTE);
 	}
 
 	@Override
@@ -815,6 +814,30 @@ public class FileProxy implements FileSource {
 	@Override
 	public long creationTime() throws IOException {
 		return 0;
+	}
+
+	@Override
+	public boolean setLastAccessTime(long time) throws IOException {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean setCreateTime(long time) throws IOException {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean setGroup(GroupPrincipal group) throws IOException {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public boolean setOwner(UserPrincipal owner) throws IOException {
+		// TODO Auto-generated method stub
+		return false;
 	}
 
 }
