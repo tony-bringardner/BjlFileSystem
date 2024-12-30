@@ -389,11 +389,13 @@ public class FileProxy implements FileSource {
 		return ret; 
 	}
 
+	
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#setLastModified(long)
 	 */
-	public void setLastModified(long time) {
-		target.setLastModified(time);
+	@Override
+	public void setLastModifiedTime(long time) {
+		target.setLastModified(time);		
 	}
 
 	/* (non-Javadoc)
@@ -608,7 +610,7 @@ public class FileProxy implements FileSource {
 	 */
 	public void setVersionDate(long time) {
 		// Just update the modification date
-		setLastModified(time);
+		setLastModifiedTime(time);
 
 	}
 
