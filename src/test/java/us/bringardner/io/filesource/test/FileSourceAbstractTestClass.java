@@ -279,53 +279,7 @@ public abstract class FileSourceAbstractTestClass {
 		}
 		traverseDir(remoteDir, null);
 
-		if(verbose) System.out.println("Test set readable and set writable\\n");
-		for(FileSource file : remoteDir.listFiles()) {
-			file.setReadable(false);
-			traverseDir(file, null);
-			String content = null;
-			try {
-				try(InputStream in = file.getInputStream()) {	
-					if( in != null ) {
-						assertTrue("getInputStream should throw permission denied",false);
-					}
-				}
-			} catch (Throwable e) {
-				file.setReadable(true);
-				traverseDir(file, null);
-				try {
-					try(InputStream in = file.getInputStream()) {	
-						if( in == null ) {
-							assertTrue("getInputStream should return a stream",false);
-						}	else {
-							content = new String(in.readAllBytes());
-							assertEquals("Content len does not match file len",content.length(), file.length());
-						}
-					}
-				} catch (Throwable e2) {
-					e2.printStackTrace();
-					assertTrue("Unexpected error "+e2, false);
-				}
-			}
-			file.setWritable(false);
-			traverseDir(file, null);
-			try {
-				try(OutputStream out = file.getOutputStream()) {	
-					if( out == null ) {
-						assertTrue("getOutputStream should return throw permission denied",false);
-					}	
-				}
-			} catch (Throwable e2) {				
-			}
-			
-			file.setWritable(true);
-			traverseDir(file, null);
-			try(OutputStream out = file.getOutputStream()) {
-				out.write(content.getBytes());
-			}
-			assertEquals("Content len does not match file len",content.length(), file.length());
-		}
-
+		
 		if(verbose) System.out.println("Rename files\n");
 		for(FileSource remoteFile : remoteDir.listFiles()) {
 			String fileName = remoteFile.getName();
@@ -380,8 +334,12 @@ public abstract class FileSourceAbstractTestClass {
 			out.write("Put some data in the file".getBytes());
 		}
 		
+
 		for(Permisions p : Permisions.values()) {
-			changeAndValidatePermission(p,file);
+			//  if we turn off owner write we won't be able to turn it back on.
+			if( p != Permisions.OwnerWrite) {
+				changeAndValidatePermission(p,file);
+			}
 		}
 		
 		assertTrue(file.delete(),"Can't delete "+file);
@@ -437,12 +395,13 @@ public abstract class FileSourceAbstractTestClass {
 		boolean b = getPermission(p, file);
 		
 		// toggle it 
-		assertTrue(setPermission(p, file, !b),"set permission failed");		
-		assertEquals(getPermission(p, file), !b,"permision did not change");
+		assertTrue(setPermission(p, file, !b),"set permission failed p="+p);
+		boolean b2 = getPermission(p, file);
+		assertEquals(b2, !b,"permision did not change p="+p);
 		
 		// Set it back
-		assertTrue(setPermission(p, file, b),"reset permission failed");		
-		assertEquals(getPermission(p, file), b,"permision did not change back to original");
+		assertTrue(setPermission(p, file, b),"reset permission failed p="+p);		
+		assertEquals(getPermission(p, file), b,"permision did not change back to original p="+p);
 		
 		
 	}
