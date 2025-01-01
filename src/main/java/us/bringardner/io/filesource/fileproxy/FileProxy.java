@@ -43,11 +43,14 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileOwnerAttributeView;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
@@ -808,36 +811,64 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public long lastAccessTime() throws IOException {
-		return 0;
+		BasicFileAttributes attrs = Files.readAttributes(target.toPath(), BasicFileAttributes.class);
+		FileTime time = attrs.lastAccessTime();
+		return time.toMillis();
 	}
 
 	@Override
 	public long creationTime() throws IOException {
-		return 0;
+		BasicFileAttributes attrs = Files.readAttributes(target.toPath(), BasicFileAttributes.class);
+		FileTime time = attrs.creationTime();
+		return time.toMillis();		
 	}
 
 	@Override
 	public boolean setLastAccessTime(long time) throws IOException {
-		// TODO Auto-generated method stub
-		return false;
+		
+		try {
+			PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
+			v.setTimes(null,FileTime.from(Instant.ofEpochMilli(time)), null);
+			
+		} catch(Throwable e) {
+			return false;
+		}
+		
+		return true;
 	}
 
 	@Override
 	public boolean setCreateTime(long time) throws IOException {
-		// TODO Auto-generated method stub
-		return false;
+		try {
+			PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
+			v.setTimes(null,null,FileTime.from(Instant.ofEpochMilli(time)));			
+		} catch(Throwable e) {
+			return false;
+		}
+		
+		return true;
 	}
 
 	@Override
 	public boolean setGroup(GroupPrincipal group) throws IOException {
-		// TODO Auto-generated method stub
-		return false;
+		try {
+			PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
+			v.setGroup(group);
+		} catch (Exception e) {
+			return false;
+		}				
+		return true;
 	}
 
 	@Override
 	public boolean setOwner(UserPrincipal owner) throws IOException {
-		// TODO Auto-generated method stub
-		return false;
+		try {
+			FileOwnerAttributeView v = Files.getFileAttributeView(target.toPath(), FileOwnerAttributeView.class);
+			v.setOwner(owner);
+		} catch (Exception e) {
+			return false;
+		}				
+		return true;
 	}
 
 }
