@@ -510,22 +510,10 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 						ret = (URLStreamHandler) cls.getDeclaredConstructor().newInstance();
 					} catch(Exception e) {}
 				}
-			}
-
-			if( ret == null ) {			
-				String className = String.format("sun.net.www.protocol.%s.Handler",protocol);
-				try {
-					Class<?> cls = Class.forName(className);
-					ret = (URLStreamHandler) cls.getDeclaredConstructor().newInstance();
-				} catch(Exception e) {}
-			}
-
+			}			
 		}		
 
-		if( ret == null ) {
-			//throw new IllegalArgumentException("Un supported protocol="+protocol);
-		}
-
+		
 		return ret;
 	}
 
