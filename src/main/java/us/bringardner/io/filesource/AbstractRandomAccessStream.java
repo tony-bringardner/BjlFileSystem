@@ -13,6 +13,8 @@ import java.nio.ByteOrder;
 
 
 /**
+ * This code is basically a replication of java.io.RandomAccessFile...
+ * 
  * Instances of this class support both reading and writing to a
  * random access file. A random access file behaves like a large
  * array of bytes stored in the file system. There is a kind of cursor,
@@ -35,11 +37,11 @@ import java.nio.ByteOrder;
  * than {@code EOFException} is thrown. In particular, an
  * {@code IOException} may be thrown if the stream has been closed.
  *
- * @since   1.0
+ * 
  */
 
 public abstract class AbstractRandomAccessStream implements IRandomAccessStream {
-
+	
 
 	private static class ByteArray {
 

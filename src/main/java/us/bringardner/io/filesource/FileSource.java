@@ -388,6 +388,9 @@ public interface FileSource extends Serializable, Comparable<Object> {
 
 	public OutputStream getOutputStream(boolean append) throws  IOException;
 
+	default IRandomAccessStream getRandomAccessStream(String mode) throws IOException {
+		throw new IOException("Not supported");
+	}
 
 	public URL toURL() throws MalformedURLException;
 

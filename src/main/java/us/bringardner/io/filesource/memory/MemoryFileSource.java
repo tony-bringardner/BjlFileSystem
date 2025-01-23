@@ -49,6 +49,8 @@ import javax.swing.ProgressMonitor;
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.FileSourceFilter;
+import us.bringardner.io.filesource.FileSourceRandomAsccessStream;
+import us.bringardner.io.filesource.IRandomAccessStream;
 import us.bringardner.io.filesource.ISeekableInputStream;
 
 
@@ -544,6 +546,15 @@ public class MemoryFileSource implements FileSource {
 		return createDate;
 	}
 
+	
+	byte[] getData() {
+		return data;
+	}
+
+	void setData(byte[] data) {
+		this.data = data;
+	}
+
 	public static String getContentType(String name) {
 		String ret = null;
 		if( name !=null ) {
@@ -961,6 +972,11 @@ public class MemoryFileSource implements FileSource {
 	public boolean setOwner(UserPrincipal owner) throws IOException {
 		this.owner = owner;
 		return true;
+	}
+
+	@Override
+	public IRandomAccessStream getRandomAccessStream(String mode) throws IOException {
+		return new FileSourceRandomAsccessStream(new MemoryRandomAccessIoController(this), mode);
 	}
 
 }

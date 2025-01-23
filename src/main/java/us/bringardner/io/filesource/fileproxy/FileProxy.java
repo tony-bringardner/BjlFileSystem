@@ -60,6 +60,8 @@ import javax.swing.ProgressMonitor;
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.FileSourceFilter;
+import us.bringardner.io.filesource.FileSourceRandomAsccessStream;
+import us.bringardner.io.filesource.IRandomAccessStream;
 import us.bringardner.io.filesource.ISeekableInputStream;
 
 
@@ -869,6 +871,12 @@ public class FileProxy implements FileSource {
 			return false;
 		}				
 		return true;
+	}
+
+	@Override
+	public IRandomAccessStream getRandomAccessStream(String mode) throws IOException {
+		
+		return new FileSourceRandomAsccessStream(new FileProxyRandomAccessIoController(this, mode), mode);
 	}
 
 }

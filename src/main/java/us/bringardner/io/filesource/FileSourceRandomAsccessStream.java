@@ -23,6 +23,9 @@ public class FileSourceRandomAsccessStream extends AbstractRandomAccessStream {
 
 	@Override
 	public int read() throws IOException {
+		if( closed ) {
+			throw new IOException("Can't write closed");
+		}
 		
 		int ret = io.read(pointer++);
 		if( ret < 0 ) {
