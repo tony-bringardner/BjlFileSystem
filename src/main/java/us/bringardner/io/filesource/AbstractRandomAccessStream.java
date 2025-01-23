@@ -498,8 +498,27 @@ public abstract class AbstractRandomAccessStream implements IRandomAccessStream 
 	 * @param     len the number of bytes to read.
 	 * @throws    IOException If an I/O error has occurred.
 	 */
-	public abstract int readBytes(byte[] b, int off, int len) throws IOException; 
+	public int readBytes(byte[] b, int off, int len) throws IOException {
+		boolean eof = false;
+		int ret = 0;
+		for(int idx = 0;!eof &&  idx < len; idx++ ) {
+			int i = read();
 
+			if( !eof && i>=0) {
+				b[off+idx] = (byte)i;
+				ret++;
+			} else {
+				eof = true;
+				break;
+			}
+		}
+		if( eof && ret == 0 ) {
+			ret = -1;
+		}
+
+		return ret;
+	}
+	
 	/**
 	 * Reads up to {@code len} bytes of data from this file into an
 	 * array of bytes. This method blocks until at least one byte of input
@@ -653,7 +672,11 @@ public abstract class AbstractRandomAccessStream implements IRandomAccessStream 
 	 * @param     len the number of bytes that are written
 	 * @throws    IOException If an I/O error has occurred.
 	 */
-	public abstract void writeBytes(byte[] b, int off, int len) throws IOException ;
+	public void writeBytes(byte[] b, int off, int len) throws IOException {
+		for(int idx = 0; idx < len; idx++ ) {
+			write(b[off+idx]);
+		}
+	}
 
 	/**
 	 * Writes {@code b.length} bytes from the specified byte array

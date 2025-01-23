@@ -11,4 +11,5 @@ public interface IRandomAccessIoController extends AutoCloseable {
 	long length() throws IOException;
 	void setLength(long newLength) throws IOException;
 	void save() throws IOException;
+	FileSource getFile();
 }
