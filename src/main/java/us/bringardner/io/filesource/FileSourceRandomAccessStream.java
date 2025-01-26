@@ -6,7 +6,7 @@ import java.io.IOException;
  * This class manages the high level logic for a random access stream
  *  It manages the pointer :-)
  */
-public class FileSourceRandomAsccessStream extends AbstractRandomAccessStream {
+public class FileSourceRandomAccessStream extends AbstractRandomAccessStream {
 
 
 	private long pointer;	
@@ -14,7 +14,7 @@ public class FileSourceRandomAsccessStream extends AbstractRandomAccessStream {
 	private IRandomAccessIoController io;
 	
 	
-	public FileSourceRandomAsccessStream(IRandomAccessIoController iocontroller,String mode) throws IOException {
+	public FileSourceRandomAccessStream(IRandomAccessIoController iocontroller,String mode) throws IOException {
 		super(iocontroller.getFile(), mode);
 		this.io = iocontroller;
 	}
