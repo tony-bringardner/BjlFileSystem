@@ -30,13 +30,18 @@
 package us.bringardner.io.filesource;
 
 import java.awt.Component;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.nio.file.FileSystems;
+import java.nio.file.attribute.UserPrincipal;
+import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,38 +62,44 @@ import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
  *
  */
 public abstract class FileSourceFactory extends BaseObject implements URLStreamHandlerFactory, Serializable {
+	
+	public static void main(String [] args) throws IOException {
+		getDefaultFactory().whoAmI();
+	}
+	
+	
 	private static final String DOT = ".";
 	private static final String DOT_DOT = "..";
-	
+
 	public static String expandDots(String pathStr,char seperator) {
 		String path = pathStr.trim();
-		
+
 		if( path.isEmpty()) {
 			return path;
 		}
-		
+
 		if( path.equals(DOT)) {
 			return "";
 		}
-		
+
 		String one = ""+seperator;
 		String two = one+seperator;
-				
-		
+
+
 		while( path.indexOf(two) >=0) {
 			path = path.replaceAll(two, one);
 		}
-		
-		
+
+
 		//  I don't understand why the java native file system removes leading /.. but it does.
 		while(path.startsWith(""+seperator+DOT_DOT)) {
 			path = path.substring(3);
 		}
-		
+
 		List<String> expanded = new ArrayList<>();
 		String [] parts = path.split("["+seperator+"]");
 
-		
+
 		for (int idx1 = 0; idx1 < parts.length; idx1++) {
 
 			String name = parts[idx1].trim();
@@ -101,7 +112,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 					expanded.size()>0 && 
 					!DOT_DOT.equals(
 							expanded.get(expanded.size()-1)
-						)
+							)
 					) {
 				expanded.remove(expanded.size()-1);
 			} else {
@@ -110,19 +121,19 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 		}
 
 		StringBuilder buf = new StringBuilder();
-		
+
 		for(int idx=0,sz=expanded.size(); idx < sz; idx++) {
 			if( idx>0) {
 				buf.append(seperator);
 			}			
 			buf.append(expanded.get(idx));
 		}
-		
+
 		String ret = buf.toString().trim().replaceAll(two, one);
 		while( ret.indexOf(two) >=0) {
 			ret = ret.replaceAll(two, one);
 		}
-		
+
 		// unique situation 
 		if( ret.startsWith(DOT_DOT) && path.startsWith(""+seperator)) {
 			ret = ret.substring(2);
@@ -130,7 +141,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 		if( ret.isEmpty() && path.startsWith(""+seperator)) {
 			ret = ""+seperator;
 		}
-		
+
 		return ret;
 	}
 
@@ -208,6 +219,8 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 		types.put("gif","image/gif");
 		types.put("txt","text/plain");
 	}
+
+	private FileSourcePrinciple localPrinciple;
 
 	/**
 	 * 
@@ -513,7 +526,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 			}			
 		}		
 
-		
+
 		return ret;
 	}
 
@@ -547,17 +560,17 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 			}
 
 			FileSourceUri fsuri = new FileSourceUri(uri);
-			
+
 			//Path path = Paths.get(url.getPath()).normalize();
 			String path = fsuri.getPath();
 			ret = factory.createFileSource(path);
 		} catch (URISyntaxException e) {
 			throw new IOException(e);
 		}
-		
-		
-		
-				return ret;
+
+
+
+		return ret;
 
 	}
 
@@ -585,4 +598,73 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	 * @return a URL that represents this connection including user-id and password
 	 */
 	public abstract String getURL();
+
+	public FileSourcePrinciple whoAmI() {
+	
+		
+		if( localPrinciple == null ) {
+			//*nix, including macOS,  system use id
+			String command = "id";
+
+			if( isWindows() ) {
+				command = "whoami /groups";
+			} 
+
+			ProcessBuilder builder = new ProcessBuilder(command);
+			Process process;
+			try {
+				process = builder.start();
+				int status = -1;
+				try {
+					status = process.waitFor();
+				} catch (InterruptedException e) {
+				}
+
+				StringBuilder out = new StringBuilder();
+				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+					String line = null;
+					while ((line = reader.readLine()) != null) {
+						out.append(line);
+						out.append("\n");
+					}					
+				}
+
+				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+					String line = null;
+					while ((line = reader.readLine()) != null) {
+						out.append(line);
+						out.append("\n");
+					}					
+				}
+
+				if( status == 0 ) {
+					FileSourcePrinciple tmp = FileSourcePrinciple.fromId(out.toString());
+					if( tmp != null ) {
+						localPrinciple = tmp;
+					}
+				} 
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+			if( localPrinciple == null ) {
+				localPrinciple = new FileSourcePrinciple();
+				UserPrincipalLookupService svr = FileSystems.getDefault().getUserPrincipalLookupService();
+				UserPrincipal user;
+				try {
+					user = svr.lookupPrincipalByName(System.getProperty("user"));
+					if( user !=null ) {
+						localPrinciple.setName(user.getName());
+					} else {
+						localPrinciple.setName("UnKnown");
+					}
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+			}
+		}
+
+		return localPrinciple;
+	}
 }

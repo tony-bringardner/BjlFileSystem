@@ -49,6 +49,7 @@ import javax.swing.ProgressMonitor;
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.FileSourceFilter;
+import us.bringardner.io.filesource.FileSourcePrinciple;
 import us.bringardner.io.filesource.FileSourceRandomAccessStream;
 import us.bringardner.io.filesource.IRandomAccessStream;
 import us.bringardner.io.filesource.ISeekableInputStream;
@@ -72,8 +73,8 @@ public class MemoryFileSource implements FileSource {
 	private UserPrincipal owner;
 	private MemoryFileSource parent;
 	private Map<String,MemoryFileSource> kidsMap = new TreeMap<>();
-	private boolean canRead=true;
-	private boolean canWrite=true;
+	private boolean canOwnerRead=true;
+	private boolean canOwnerWrite=true;
 	private boolean canExecute=true;
 	private boolean canGroupRead=true;
 	private boolean canGroupWrite=true;
@@ -94,7 +95,7 @@ public class MemoryFileSource implements FileSource {
 		this.theCreator = creator;
 		if( parent == null ) {
 			fileType = FileType.Directory;
-			canRead = canWrite = true;
+			canOwnerRead = canOwnerWrite = true;
 		}
 
 	}
@@ -117,26 +118,38 @@ public class MemoryFileSource implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#canRead()
 	 */
-	public boolean canRead() {
-		return canRead;
+	public boolean canRead() throws IOException {
+		FileSourcePrinciple me = theCreator.whoAmI();
+		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
+			return canOwnerRead();
+		} else if( me.hasGroup(getGroup().getName())) {
+			return canGroupRead();
+		} 
+		return canOtherRead();
 	}
+
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#canWrite()
 	 */
-	public boolean canWrite() {
-
-		return canWrite;
+	public boolean canWrite() throws IOException {
+		FileSourcePrinciple me = theCreator.whoAmI();
+		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
+			return canOwnerWrite();
+		} else if( me.hasGroup(getGroup().getName())) {
+			return canGroupWrite();
+		} 
+		return canOtherWrite();
 	}
 
 	@Override
 	public boolean canOwnerRead() throws IOException {
-		return canRead;
+		return canOwnerRead;
 	}
 
 	@Override
 	public boolean canOwnerWrite() throws IOException {
-		return  canWrite;
+		return  canOwnerWrite;
 	}
 
 	@Override
@@ -294,15 +307,15 @@ public class MemoryFileSource implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#listFiles()
 	 */
-	public FileSource[] listFiles() {
+	public FileSource[] listFiles() throws IOException {
 		return listFiles((FileSourceFilter)null);
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#listFiles(us.bringardner.io.FileSourceFilter)
 	 */
-	public FileSource[] listFiles(FileSourceFilter filter) {
-		if( !canRead ) {
+	public FileSource[] listFiles(FileSourceFilter filter) throws IOException {
+		if( !canRead() ) {
 			throw new IllegalAccessError("Permission denied");
 		}
 		MemoryFileSource [] ret = null;
@@ -334,7 +347,7 @@ public class MemoryFileSource implements FileSource {
 			return false;
 		}
 		fileType = FileType.Directory;
-		canRead = canWrite = true;
+		canOwnerRead = canOwnerWrite = true;
 
 		return true;
 	}
@@ -363,7 +376,7 @@ public class MemoryFileSource implements FileSource {
 		boolean ret = false;
 		if( exists() && 
 				!isRoot && 
-				canWrite )  {
+				canOwnerWrite() )  {
 			if (dest instanceof MemoryFileSource) {
 				MemoryFileSource newFile = (MemoryFileSource) dest;
 				if( !newFile.exists() && 
@@ -371,17 +384,17 @@ public class MemoryFileSource implements FileSource {
 						!newFile.isRoot ) {
 
 					newFile.data= data;
-					newFile.canRead = canRead;
-					newFile.canWrite = canWrite;
+					newFile.canOwnerRead = canOwnerRead;
+					newFile.canOwnerWrite = canOwnerWrite;
 					newFile.fileType = fileType;
 					newFile.group = group;
 					newFile.lastModified = lastModified;
 					newFile.owner = owner;
 					newFile.isRoot = isRoot;
 
-					
+
 					fileType = FileType.Undefined;
-					canRead = canWrite = false;
+					canOwnerRead = canOwnerWrite = false;
 					ret = true;
 
 				}
@@ -404,16 +417,16 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#setReadOnly()
 	 */
 	public boolean setReadOnly() {
-		canRead = true;
-		return canWrite=false;
+		canOwnerRead = true;
+		return canOwnerWrite=false;
 	}
 
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#getInputStream()
 	 */
-	public InputStream getInputStream() throws FileNotFoundException {
-		if(fileType != FileType.Undefined &&  !canRead ) {
+	public InputStream getInputStream() throws IOException {
+		if(fileType != FileType.Undefined &&  !canRead() ) {
 			throw new IllegalAccessError("Permission denied");
 		}
 		if( exists() && fileType==FileType.Directory) {
@@ -433,7 +446,7 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#getOutputStream()
 	 */
 	public OutputStream getOutputStream() throws FileNotFoundException {
-		if(fileType != FileType.Undefined &&  !canWrite ) {
+		if(fileType != FileType.Undefined &&  !canOwnerWrite ) {
 			throw new IllegalAccessError("Permission denied");
 		}
 		if( exists() && fileType==FileType.Directory) {
@@ -448,7 +461,7 @@ public class MemoryFileSource implements FileSource {
 			}
 		};
 		fileType = FileType.File;
-		canRead = canWrite = true;
+		canOwnerRead = canOwnerWrite = true;
 		lastAccessed = System.currentTimeMillis();
 		lastModified = System.currentTimeMillis();
 
@@ -466,7 +479,7 @@ public class MemoryFileSource implements FileSource {
 		if( data == null ) {
 			data = new byte[0];
 			fileType = FileType.File;
-			canRead = canWrite = true;
+			canOwnerRead = canOwnerWrite = true;
 		}
 
 		ByteArrayOutputStream ret = new ByteArrayOutputStream(data.length==0?200:data.length) {
@@ -546,7 +559,7 @@ public class MemoryFileSource implements FileSource {
 		return createDate;
 	}
 
-	
+
 	byte[] getData() {
 		return data;
 	}
@@ -592,7 +605,7 @@ public class MemoryFileSource implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#list(us.bringardner.io.filesource.FileSourceFilter)
 	 */
-	public String[] list(FileSourceFilter filter) {
+	public String[] list(FileSourceFilter filter) throws IOException {
 		String [] ret = null;
 		FileSource [] list = listFiles(filter);
 		if( list != null ) {
@@ -633,10 +646,11 @@ public class MemoryFileSource implements FileSource {
 	@Override
 	public UserPrincipal getOwner() throws IOException {
 		if(owner == null ) {
+
 			owner = new UserPrincipal() {
 				@Override
 				public String getName() {
-					return "Unknown";
+					return theCreator.whoAmI().getName();					
 				}
 			};
 		}
@@ -651,7 +665,9 @@ public class MemoryFileSource implements FileSource {
 
 				@Override
 				public String getName() {
-					return "Unknown";
+					FileSourcePrinciple owner = theCreator.whoAmI();
+					return owner.getGroups().get(owner.getGid());
+
 				}
 			};
 		}
@@ -695,7 +711,7 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	public InputStream getInputStream(long startingPos) throws IOException {
-		if( !canRead ) {
+		if( !canRead() ) {
 			throw new IllegalAccessError("Permission denied");
 		}
 		if( exists() && fileType==FileType.Directory) {
@@ -710,7 +726,7 @@ public class MemoryFileSource implements FileSource {
 			ret = new ByteArrayInputStream(data,(int)startingPos,data.length);
 		}
 		fileType = FileType.File;
-		canRead = canWrite = true;
+		canOwnerRead = canOwnerWrite = true;
 		lastAccessed = System.currentTimeMillis();
 
 		return ret;
@@ -743,7 +759,7 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	@Override
-	public FileSource[] listFiles(ProgressMonitor progress) {
+	public FileSource[] listFiles(ProgressMonitor progress) throws IOException {
 		// this will be instantaneous so no need for progress monitor
 		FileSource [] ret = listFiles();
 		progress.setProgress(progress.getMaximum());
@@ -764,7 +780,7 @@ public class MemoryFileSource implements FileSource {
 
 	@Override
 	public ISeekableInputStream getSeekableInputStream() throws IOException {
-		if( !canRead ) {
+		if( !canRead() ) {
 			throw new IllegalAccessError("Permission denied");
 		}
 		if( data == null ) {
@@ -857,13 +873,13 @@ public class MemoryFileSource implements FileSource {
 
 	@Override
 	public boolean setReadable(boolean b) {
-		canRead = b;
+		canOwnerRead = b;
 		return true;
 	}
 
 	@Override
 	public boolean setWritable(boolean b) {
-		canWrite = b;
+		canOwnerWrite = b;
 		return true;
 	}
 
@@ -876,7 +892,7 @@ public class MemoryFileSource implements FileSource {
 
 	@Override
 	public boolean setReadable(boolean b, boolean ownerOnly) {
-		canRead = b;
+		canOwnerRead = b;
 		canOtherRead = canGroupRead == !ownerOnly;
 		return true;
 	}
@@ -890,7 +906,7 @@ public class MemoryFileSource implements FileSource {
 
 	@Override
 	public boolean setOwnerReadable(boolean b) throws IOException {
-		canRead = b;
+		canOwnerRead = b;
 		return true;
 	}
 
@@ -902,7 +918,7 @@ public class MemoryFileSource implements FileSource {
 
 	@Override
 	public boolean setOwnerWritable(boolean b) throws IOException {
-		canWrite = b;
+		canOwnerWrite = b;
 		return true;
 	}
 
@@ -916,13 +932,13 @@ public class MemoryFileSource implements FileSource {
 		canGroupRead = b;
 		return true;
 	}
-	
+
 	@Override
 	public boolean setGroupWritable(boolean b) throws IOException {
 		canGroupWrite = b;
 		return true;
 	}
-	
+
 	@Override
 	public boolean setOtherExecutable(boolean b) throws IOException {
 		canOtherExecute = b;
@@ -949,7 +965,7 @@ public class MemoryFileSource implements FileSource {
 		return createDate;
 	}
 
-	
+
 	@Override
 	public boolean setLastAccessTime(long time) throws IOException {
 		lastAccessed = time;

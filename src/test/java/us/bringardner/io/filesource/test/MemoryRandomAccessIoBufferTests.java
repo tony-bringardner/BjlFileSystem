@@ -94,7 +94,7 @@ public class MemoryRandomAccessIoBufferTests extends FileSourceRandomAccessIoBuf
 		} catch (Exception e) {
 			throw new IOException(e);
 		}
-		System.out.println("testSeekAndRead  Done");
+		
 	}
 
 
@@ -132,10 +132,7 @@ public class MemoryRandomAccessIoBufferTests extends FileSourceRandomAccessIoBuf
 			}
 		} catch (Exception e) {
 			throw new IOException(e);
-		}
-		
-
-		System.out.println("done with testSeekAndWrite");
+		}				
 		
 	}
 	
@@ -172,10 +169,7 @@ public class MemoryRandomAccessIoBufferTests extends FileSourceRandomAccessIoBuf
 		} catch (Exception e) {
 			throw new IOException(e);
 		}
-	
-		
-		System.out.println("done with testWritePastEnd");
-		
+
 	}
 	
 }

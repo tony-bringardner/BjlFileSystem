@@ -94,7 +94,7 @@ public class FileProxyRandomAccessIoBufferTests extends FileSourceRandomAccessIo
 		} catch (Exception e) {
 			throw new IOException(e);
 		}
-		System.out.println("testSeekAndRead  Done");
+		//System.out.println("testSeekAndRead  Done");
 	}
 
 
@@ -135,7 +135,7 @@ public class FileProxyRandomAccessIoBufferTests extends FileSourceRandomAccessIo
 		}
 		
 
-		System.out.println("done with testSeekAndWrite");
+		//System.out.println("done with testSeekAndWrite");
 		
 	}
 	
@@ -174,7 +174,7 @@ public class FileProxyRandomAccessIoBufferTests extends FileSourceRandomAccessIo
 		}
 	
 		
-		System.out.println("done with testWritePastEnd");
+		//System.out.println("done with testWritePastEnd");
 		
 	}
 	
