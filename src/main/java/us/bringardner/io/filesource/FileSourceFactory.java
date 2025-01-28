@@ -220,7 +220,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 		types.put("txt","text/plain");
 	}
 
-	private FileSourcePrinciple localPrinciple;
+	private FileSourceUser localPrinciple;
 
 	/**
 	 * 
@@ -599,7 +599,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	 */
 	public abstract String getURL();
 
-	public FileSourcePrinciple whoAmI() {
+	public FileSourceUser whoAmI() {
 	
 		
 		if( localPrinciple == null ) {
@@ -638,7 +638,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 				}
 
 				if( status == 0 ) {
-					FileSourcePrinciple tmp = FileSourcePrinciple.fromId(out.toString());
+					FileSourceUser tmp = FileSourceUser.fromId(out.toString());
 					if( tmp != null ) {
 						localPrinciple = tmp;
 					}
@@ -647,7 +647,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 				e.printStackTrace();
 			}
 			if( localPrinciple == null ) {
-				localPrinciple = new FileSourcePrinciple();
+				localPrinciple = new FileSourceUser();
 				UserPrincipalLookupService svr = FileSystems.getDefault().getUserPrincipalLookupService();
 				UserPrincipal user;
 				try {

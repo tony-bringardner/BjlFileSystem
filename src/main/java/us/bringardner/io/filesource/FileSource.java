@@ -82,7 +82,7 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * @throws IOException 
 	 */
 	default public boolean canRead() throws IOException {
-		FileSourcePrinciple me = getFileSourceFactory().whoAmI();
+		FileSourceUser me = getFileSourceFactory().whoAmI();
 		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
 			return canOwnerRead();
 		} else if( me.hasGroup(getGroup().getName())) {
@@ -100,7 +100,7 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * @throws IOException 
 	 */
 	default public boolean canWrite() throws IOException {
-		FileSourcePrinciple me = getFileSourceFactory().whoAmI();
+		FileSourceUser me = getFileSourceFactory().whoAmI();
 		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
 			return canOwnerWrite();
 		} else if( me.hasGroup(getGroup().getName())) {

@@ -49,8 +49,9 @@ import javax.swing.ProgressMonitor;
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.FileSourceFilter;
-import us.bringardner.io.filesource.FileSourcePrinciple;
+import us.bringardner.io.filesource.FileSourceGroup;
 import us.bringardner.io.filesource.FileSourceRandomAccessStream;
+import us.bringardner.io.filesource.FileSourceUser;
 import us.bringardner.io.filesource.IRandomAccessStream;
 import us.bringardner.io.filesource.ISeekableInputStream;
 
@@ -69,8 +70,8 @@ public class MemoryFileSource implements FileSource {
 	private FileType fileType=FileType.Undefined;
 
 	private MemoryFileSourceFactory theCreator ;
-	private GroupPrincipal group;
-	private UserPrincipal owner;
+	private FileSourceGroup group;
+	private FileSourceUser owner;
 	private MemoryFileSource parent;
 	private Map<String,MemoryFileSource> kidsMap = new TreeMap<>();
 	private boolean canOwnerRead=true;
@@ -119,7 +120,7 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#canRead()
 	 */
 	public boolean canRead() throws IOException {
-		FileSourcePrinciple me = theCreator.whoAmI();
+		FileSourceUser me = theCreator.whoAmI();
 		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
 			return canOwnerRead();
 		} else if( me.hasGroup(getGroup().getName())) {
@@ -133,7 +134,7 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#canWrite()
 	 */
 	public boolean canWrite() throws IOException {
-		FileSourcePrinciple me = theCreator.whoAmI();
+		FileSourceUser me = theCreator.whoAmI();
 		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
 			return canOwnerWrite();
 		} else if( me.hasGroup(getGroup().getName())) {
@@ -644,33 +645,19 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	@Override
-	public UserPrincipal getOwner() throws IOException {
+	public FileSourceUser getOwner() throws IOException {
 		if(owner == null ) {
-
-			owner = new UserPrincipal() {
-				@Override
-				public String getName() {
-					return theCreator.whoAmI().getName();					
-				}
-			};
+			owner = theCreator.whoAmI();
 		}
 
 		return owner;
 	}
 
 	@Override
-	public GroupPrincipal getGroup() throws IOException {
+	public FileSourceGroup getGroup() throws IOException {
 		if( group == null ) {
-			group = new GroupPrincipal() {
-
-				@Override
-				public String getName() {
-					FileSourcePrinciple owner = theCreator.whoAmI();
-					return owner.getGroups().get(owner.getGid());
-
-				}
-			};
-		}
+			group = getOwner().getGroup(); 
+			}
 		return group;
 	}
 
@@ -979,15 +966,26 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	@Override
-	public boolean setGroup(GroupPrincipal group) throws IOException {
-		this.group = group;
-		return true;
+	public boolean setGroup(GroupPrincipal group1) throws IOException {
+		boolean ret = false;
+		if (group1 instanceof FileSourceGroup) {
+			group = (FileSourceGroup) group1;
+			getOwner().setGroup(group);
+			ret = true;
+		}
+		
+		return ret;
 	}
 
 	@Override
-	public boolean setOwner(UserPrincipal owner) throws IOException {
-		this.owner = owner;
-		return true;
+	public boolean setOwner(UserPrincipal owner1) throws IOException {
+		boolean ret = false;
+		if (owner1 instanceof FileSourceUser) {
+			owner = (FileSourceUser) owner1;
+			ret = true;
+		}
+		
+		return ret;
 	}
 
 	@Override
