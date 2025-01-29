@@ -85,7 +85,9 @@ public interface FileSource extends Serializable, Comparable<Object> {
 		FileSourceUser me = getFileSourceFactory().whoAmI();
 		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
 			return canOwnerRead();
-		} else if( me.hasGroup(getGroup().getName())) {
+		} else if( me.hasGroup(
+				getGroup().getName()
+				)) {
 			return canGroupRead();
 		} 
 		return canOtherRead();
