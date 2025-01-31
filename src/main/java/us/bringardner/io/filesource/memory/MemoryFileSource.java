@@ -116,33 +116,7 @@ public class MemoryFileSource implements FileSource {
 		return getAbsolutePath().compareTo(o.toString());
 	}
 
-	/* (non-Javadoc)
-	 * @see us.bringardner.io.FileSource#canRead()
-	 */
-	public boolean canRead() throws IOException {
-		FileSourceUser me = theCreator.whoAmI();
-		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
-			return canOwnerRead();
-		} else if( me.hasGroup(getGroup().getName())) {
-			return canGroupRead();
-		} 
-		return canOtherRead();
-	}
-
-
-	/* (non-Javadoc)
-	 * @see us.bringardner.io.FileSource#canWrite()
-	 */
-	public boolean canWrite() throws IOException {
-		FileSourceUser me = theCreator.whoAmI();
-		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
-			return canOwnerWrite();
-		} else if( me.hasGroup(getGroup().getName())) {
-			return canGroupWrite();
-		} 
-		return canOtherWrite();
-	}
-
+	
 	@Override
 	public boolean canOwnerRead() throws IOException {
 		return canOwnerRead;

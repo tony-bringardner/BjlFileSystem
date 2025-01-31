@@ -45,25 +45,24 @@ public class PropertyPanel extends JPanel implements IConnectionPropertiesEditor
 	 */
 	private static final long serialVersionUID = 1L;
 
-	private Properties properties;
+	private Properties properties = new Properties();
 	private Map<String,Component> map = new HashMap<String, Component>();
 
 
 	public Properties getProperties() {
 		//  get current values
-		if( properties != null ) {
-			for (Entry<Object, Object> e : properties.entrySet()) {
-				String nm = e.getKey().toString();
-				Component fld = map.get(nm);
-				if (fld instanceof JPasswordField) {
-					JPasswordField pw = (JPasswordField) fld;
-					properties.setProperty(nm, new String(pw.getPassword()));
-				} else if (fld instanceof JTextField) {
-					JTextField txt = (JTextField) fld;
-					properties.setProperty(nm, txt.getText());
-				}
+		for (Entry<Object, Object> e : properties.entrySet()) {
+			String nm = e.getKey().toString();
+			Component fld = map.get(nm);
+			if (fld instanceof JPasswordField) {
+				JPasswordField pw = (JPasswordField) fld;
+				properties.setProperty(nm, new String(pw.getPassword()));
+			} else if (fld instanceof JTextField) {
+				JTextField txt = (JTextField) fld;
+				properties.setProperty(nm, txt.getText());
 			}
 		}
+
 		return properties;
 	}
 
@@ -88,7 +87,7 @@ public class PropertyPanel extends JPanel implements IConnectionPropertiesEditor
 			p.setLayout(new FlowLayout(FlowLayout.LEFT));
 			p.add(new JLabel(name));
 			Component fld = new JTextField(val,10);
-			
+
 			if( name.toLowerCase().contains("password")) {
 				fld = new JPasswordField(val,20);
 			}

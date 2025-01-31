@@ -33,8 +33,6 @@ package us.bringardner.io.filesource;
 
 import java.awt.BorderLayout;
 import java.awt.Container;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.util.Properties;
 
 import javax.swing.JLabel;
@@ -51,7 +49,6 @@ public class PropertiesEditDialog extends javax.swing.JDialog {
 	private Properties props;
 	
 	private boolean testing;
-	private boolean accepted;
 
 	/** Creates new form ConnectioinPropertiesDialog */
 	public PropertiesEditDialog() {
@@ -115,8 +112,7 @@ public class PropertiesEditDialog extends javax.swing.JDialog {
 
 		centerPanel.setLayout(null);
 
-		jLabel1
-		.setText("There are no connection properties for the FileSource Factory.");
+		jLabel1.setText("There are no connection properties for the FileSource Factory.");
 		centerPanel.add(jLabel1);
 		jLabel1.setBounds(70, 120, 325, 16);
 
@@ -139,7 +135,7 @@ public class PropertiesEditDialog extends javax.swing.JDialog {
 
 
 	private void testButtonActionPerformed(java.awt.event.ActionEvent evt) {
-		System.out.println("TEst");
+		System.out.println("Test");
 	}
 
 	
@@ -152,14 +148,14 @@ public class PropertiesEditDialog extends javax.swing.JDialog {
 
 	private void okButtonActionPerformed(java.awt.event.ActionEvent evt) {
 		if( !testing ) {
-				accepted = true;
-				dispose();
+			dispose();
 		}
 	}
 
 
 	
-	public boolean showDialog(Properties properties) {
+	public Properties showDialog(Properties properties) {
+		
 		props = new Properties();
 		for(Object key :   properties.keySet()) {
 			props.setProperty(key.toString(), properties.getProperty(key.toString()));
@@ -171,25 +167,13 @@ public class PropertiesEditDialog extends javax.swing.JDialog {
 		
 		setLocationRelativeTo(null);
 		
-		addWindowListener(new WindowAdapter() {
-			@Override
-			public void windowClosing(WindowEvent arg0) {
-				if( ! accepted ) {
-					//  if the users closes the window without pressing ok or cancel we cancel the operation
-					cancel = true;
-				}
-			}
-			
-		});
 		setVisible(true);
 		if(!cancel) {
-			Properties p = edit.getProperties();
-			for(Object key :   p.keySet()) {
-				properties.setProperty(key.toString(), p.getProperty(key.toString()));
-			}				
+			 return edit.getProperties();							
+		} else {
+			return null;
 		}
-		
-		return accepted;
+				
 	}
 
 

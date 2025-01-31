@@ -72,26 +72,30 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 */
 
 	public String getContentType() ;
-	
+
 	/**
 	 * Tests whether the application can read the 
 	 * file denoted by this abstract pathname.
 	 * This is only here for comparability with java.io.File.  canOwnerRead is a better chose.
 	 * 
 	 * @return true if and only if the file system actually contains a file denoted by this abstract pathname and the application is allowed to write to the file; false otherwise.  
-	 * @throws IOException 
+	 * 
 	 */
-	default public boolean canRead() throws IOException {
-		FileSourceUser me = getFileSourceFactory().whoAmI();
-		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
-			return canOwnerRead();
-		} else if( me.hasGroup(
-				getGroup().getName()
-				)) {
-			return canGroupRead();
-		} 
-		return canOtherRead();
-		
+	default public boolean canRead()  {		
+		try {
+
+			FileSourceUser me = getFileSourceFactory().whoAmI();
+			if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
+				return canOwnerRead();
+			} else if( me.hasGroup(
+					getGroup().getName()
+					)) {
+				return canGroupRead();
+			} 
+			return canOtherRead();
+		} catch (Exception e) {
+		}
+		return false;
 	}
 
 	/**
@@ -99,16 +103,21 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * This is only here for comparability with java.io.File.  canOwnerWrite is a better chose.
 	 * 
 	 * @return
-	 * @throws IOException 
+	 * 
 	 */
-	default public boolean canWrite() throws IOException {
-		FileSourceUser me = getFileSourceFactory().whoAmI();
-		if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
-			return canOwnerWrite();
-		} else if( me.hasGroup(getGroup().getName())) {
-			return canGroupWrite();
-		} 
-		return canOtherWrite();
+	default public boolean canWrite() {
+		try {
+
+			FileSourceUser me = getFileSourceFactory().whoAmI();
+			if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
+				return canOwnerWrite();
+			} else if( me.hasGroup(getGroup().getName())) {
+				return canGroupWrite();
+			} 
+			return canOtherWrite();
+		} catch (Exception e) {
+		}
+		return false;
 	}
 
 	boolean canOwnerRead() throws IOException ;
@@ -124,17 +133,14 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	boolean canGroupExecute() throws IOException;
 
 	boolean canOtherRead() throws IOException ;
-	
+
 	boolean canOtherWrite() throws IOException ;
 
 	boolean canOtherExecute() throws IOException;
 
 	/*
 	 * Atomically creates a new, empty file named by this abstract pathname if 
-	 * and only if a file with this name does not yet exist. The check for the 
-	 * existence of the file and the creation of the file if it does not exist 
-	 * are a single operation that is atomic with respect to all 
-	 * other file system activities that might affect the file. 
+	 * and only if a file with this name does not yet exist.  
 	 */
 	public boolean createNewFile() throws IOException ;
 
@@ -292,9 +298,9 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	public boolean renameTo(FileSource dest)  throws IOException ;
 
 	public boolean setLastModifiedTime(long time) throws IOException;
-	
+
 	public boolean setLastAccessTime(long time) throws IOException;
-	
+
 	public boolean setCreateTime(long time) throws IOException;
 
 	/**
@@ -303,7 +309,7 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * @throws IOException 
 	 */
 	public boolean  setExecutable(boolean b) throws IOException;
-	
+
 	/**
 	 * Set access permission for the file owner
 	 * @param b
@@ -353,28 +359,28 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * @throws IOException 
 	 */
 	boolean setGroupReadable(boolean b) throws IOException ;
-	
+
 	/**
 	 * Set access permission for the file group
 	 * @param c
 	 * @throws IOException 
 	 */
 	boolean setGroupWritable(boolean b) throws IOException ;
-	
+
 	/**
 	 * Set access permission for anyone other the file owner and group group
 	 * @param c
 	 * @throws IOException 
 	 */
 	boolean setOtherExecutable(boolean b) throws IOException ;
-	
+
 	/**
 	 * Set access permission for anyone other the file owner and group group
 	 * @param c
 	 * @throws IOException 
 	 */
 	boolean setOtherReadable(boolean b) throws IOException ;
-	
+
 	/**
 	 * Set access permission for anyone other the file owner and group group
 	 * @param c
@@ -439,11 +445,11 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	public abstract ISeekableInputStream getSeekableInputStream() throws IOException;
 
 	public abstract GroupPrincipal getGroup() throws IOException;
-	
+
 	public boolean setGroup(GroupPrincipal group) throws IOException ;
-	
+
 	public abstract UserPrincipal getOwner() throws IOException;
-	
+
 	public boolean setOwner(UserPrincipal owner) throws IOException ;
 
 
