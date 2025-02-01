@@ -48,6 +48,8 @@ public class PropertyPanel extends JPanel implements IConnectionPropertiesEditor
 	private Properties properties = new Properties();
 	private Map<String,Component> map = new HashMap<String, Component>();
 
+	private FileSourceFactory factory;
+
 
 	public Properties getProperties() {
 		//  get current values
@@ -85,7 +87,15 @@ public class PropertyPanel extends JPanel implements IConnectionPropertiesEditor
 			}
 			JPanel p = new JPanel();
 			p.setLayout(new FlowLayout(FlowLayout.LEFT));
-			p.add(new JLabel(name));
+			String displayName = name;
+			if( factory != null) {
+				String id = factory.getTypeId();
+				if( name.toLowerCase().startsWith(id.toLowerCase())) {
+					displayName = name.substring(id.length());
+				}
+			}
+			
+			p.add(new JLabel(displayName));
 			Component fld = new JTextField(val,10);
 
 			if( name.toLowerCase().contains("password")) {
@@ -105,6 +115,13 @@ public class PropertyPanel extends JPanel implements IConnectionPropertiesEditor
 	public PropertyPanel() {
 		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 
+	}
+
+
+
+	public void setProperties(FileSourceFactory factory) {
+		this.factory = factory; 
+		setProperties(factory.getConnectProperties());
 	}
 
 }
