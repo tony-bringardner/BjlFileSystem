@@ -102,8 +102,7 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 	private static final long serialVersionUID = 1L;
 	//data:image/jpeg;base64,
 	private Icon fileIcon;
-	private Icon folderIcon;
-	private RecentFileMenu recentFileMenu;
+	private Icon folderIcon;	
 
 
 	// ************************
@@ -1324,40 +1323,7 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 		return okButton.getMnemonic();
 	}
 
-	/**
-	 * 
-	 * @param cls the class who's package is used for storing preferences
-	 * @param inMainMenu if yes, the recentFilesMenu is added to the main menu, otherwise a separate menu is created in the menubar
-	 * @throws IOException	 
-	 */
-	public void setSupportRecentFiles(Class<?> cls,boolean inMainMenu) throws IOException {
-		if( recentFileMenu != null ) {
-			menuBar.remove(recentFileMenu);
-			mainMenu.remove(recentFileMenu);
-		}
-		recentFileMenu = new RecentFileMenu(cls);
-		if( inMainMenu) {
-			mainMenu.add(recentFileMenu);
-		} else {
-			menuBar.add(recentFileMenu);
-		}
-
-		recentFileMenu.addActionListener((e)->{
-			Object source =  e.getSource();
-			if (source instanceof FileSource) {
-				FileSource file = (FileSource) source;
-				try {
-					setSelectedFile(file);
-				} catch (Exception e2) {
-					JOptionPane.showMessageDialog(FileSourceChooserDialog.this, e2, "Could not get file path", JOptionPane.ERROR_MESSAGE);
-				}	
-			} else {
-				JOptionPane.showMessageDialog(FileSourceChooserDialog.this, "Did not get a FileSOurce as source of event.", source.getClass().getName(), JOptionPane.ERROR_MESSAGE);
-			}
-		});
-
-	}
-
+	
 	public void setApproveButtonMnemonic(int mnemonic) {
 		int oldValue = okButton.getMnemonic();
 		if(oldValue == mnemonic) {
@@ -1490,14 +1456,7 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 				}
 			}
 		}
-		if( recentFileMenu != null && ret != null) {
-			try {
-				recentFileMenu.addRecent(ret);
-			} catch (IOException e) {
-				showError("", e);
-			}
-		}
-
+		
 
 		return ret;
 	}
