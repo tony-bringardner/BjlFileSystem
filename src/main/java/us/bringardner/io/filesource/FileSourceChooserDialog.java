@@ -1105,6 +1105,12 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 
 
 
+	public FileSourceChooserDialog(FileSource cwd) {
+		this();
+		setCurrentDirectory(cwd);
+	}
+
+
 	protected void actionNext() {
 		if(!nextStack.isEmpty()) {
 			FileSource dir = nextStack.pop();
