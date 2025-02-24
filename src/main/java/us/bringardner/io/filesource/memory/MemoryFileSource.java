@@ -489,7 +489,7 @@ public class MemoryFileSource implements FileSource {
 		return getAbsolutePath();
 	}
 
-	/* Return a Factory taht can be used to create a factory of this type.
+	/* Return a Factory that can be used to create a factory of this type.
 	 * @see us.bringardner.io.FileSource#getFileSourceFactory()
 	 */
 	public FileSourceFactory getFileSourceFactory() {
