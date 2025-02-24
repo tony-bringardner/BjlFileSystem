@@ -40,19 +40,17 @@ import us.bringardner.io.filesource.fileproxy.FileProxy;
 
 public class FileSourceTransferable implements Transferable {
 
-	public  static final DataFlavor fileSourceFlavor = new DataFlavor(List.class, "A File Source");
+	public  static final DataFlavor fileSourceFlavor = new DataFlavor(List.class, "A FileSource");
 
 	protected final DataFlavor[] supportedFlavors = {
 			fileSourceFlavor,
-			//DataFlavor.stringFlavor,
 			DataFlavor.javaFileListFlavor
 	};
 
 	private List<FileSource> files;
 
 	public FileSourceTransferable(List<FileSource> files) {
-		this.files = files;
-		System.out.println("Contructore files="+files);
+		this.files = files;		
 	}
 
 	@Override
@@ -78,22 +76,16 @@ public class FileSourceTransferable implements Transferable {
             throw new UnsupportedFlavorException(flavor);
         }
 		
-		System.out.println("Enter getTransferData flavor="+flavor);
 		Object ret = null;
 		if (flavor.equals(fileSourceFlavor)) {
-			System.out.println("return filesource");
 			ret = files;
 		} else if( flavor.equals(DataFlavor.javaFileListFlavor)) {
-			System.out.println("resturn java file");
 			List<File> list = new ArrayList<File>();
 			for(FileSource file : files) {
-
 				File exportFile = null;
 				if (file instanceof FileProxy	) {
-					System.out.println("File is proxy");
 					exportFile = new File(file.getCanonicalPath());						
 				} else {
-					System.out.println("File is not proxy");
 					File tmp = File.createTempFile("tmp", "fs");
 					OutputStream out = new FileOutputStream(tmp);
 					InputStream in = file.getInputStream();
