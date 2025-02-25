@@ -320,25 +320,21 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 
 	public static FileSourceFactory getFileSourceFactory(String factory_id){
 		FileSourceFactory ret = null;
+		FileSourceFactory dummy = null;
 		if( factory_id  != null ) {
 			factory_id = factory_id.trim().toLowerCase();
 
 			for (FileSourceFactory fsf : factoryLoader) {
 				if( fsf.getTypeId().trim().toLowerCase().equals(factory_id)) {
-					ret = fsf;
+					dummy = fsf;
 					break;
 				}
 			}				
 
-			if( ret != null ) {
+			if( dummy != null ) {
 				try {
-					// this factory should never be connected
-					FactorySession s = new FactorySession(ret);
-					FactorySession session=sessionsKeyMap.get(s.key);
-					if( session != null ) {
-						ret = session.factory;
-					}
-					logger.logInfo("Loaded "+ret.getClass()+" as "+factory_id);
+					ret = dummy.getClass().getDeclaredConstructor().newInstance();
+					logger.logInfo("Created "+ret.getClass()+" as "+factory_id);
 				} catch (Exception e) {
 					logger.logError("Can't create factory for "+factory_id,e);				
 				}
