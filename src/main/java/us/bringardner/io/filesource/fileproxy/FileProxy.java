@@ -272,11 +272,10 @@ public class FileProxy implements FileSource {
 	public boolean isChildOfMine(FileSource child) {
 		boolean ret = (child instanceof FileProxy);
 		if( ret ){
-			try {
-				ret = child.getCanonicalPath().startsWith(getCanonicalPath());
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+				String p1 = child.getAbsolutePath();
+				String p2 = getAbsolutePath();
+				ret = p1.startsWith(p2);
+			
 		}
 
 		return ret;
