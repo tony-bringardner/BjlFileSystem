@@ -537,6 +537,31 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	}
 
 	/**
+	 * Creates a symbolic link to a target (optional operation).
+	 * 		The target parameter is the target of the link. It may be an absolute or relative path and may not exist. 
+	 * 
+	 * @param newFileLink
+	 * @param existingFile
+	 * @return
+	 * @throws IOException
+	 */
+	public abstract FileSource createSymbolicLink(FileSource newFileLink, FileSource existingFile) throws IOException ;
+	
+	/**
+	 * Creates a new link (directory entry) for an existing file.
+	 * 		The link parameter locates the directory entry to create. 
+	 * 		The existing parameter is the path to an existing file. 
+	 * 		This method creates a new directory entry for the file so that it can be accessed using link as the path. 
+	 * 		
+	 * 
+	 * @param newFileLink
+	 * @param existingFile
+	 * @return
+	 * @throws IOException
+	 */
+	public abstract FileSource createLink(FileSource newFileLink, FileSource existingFile) throws IOException ;
+	
+	/**
 	 * @param url
 	 * @return
 	 * @throws IOException 

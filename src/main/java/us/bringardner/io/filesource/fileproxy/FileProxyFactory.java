@@ -33,6 +33,8 @@ import java.awt.Component;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -228,6 +230,38 @@ public class FileProxyFactory extends FileSourceFactory {
 	protected void disConnectImpl() {
 		// ignore
 		
+	}
+
+
+	@Override
+	public FileSource createSymbolicLink(FileSource newLink, FileSource existing) throws IOException {
+		FileSource ret = newLink;
+		if (newLink instanceof FileProxy) {
+			FileProxy sfp = (FileProxy) newLink;
+			if (existing instanceof FileProxy) {
+				FileProxy tfp = (FileProxy) existing;
+				Path path = Files.createSymbolicLink(sfp.target.toPath(), tfp.target.toPath());
+				
+				ret = new FileProxy(path.toFile(), this); 
+			}
+		}
+		
+		return ret;
+	}
+
+
+	@Override
+	public FileSource createLink(FileSource newLink, FileSource existing) throws IOException {
+		FileSource ret = newLink;
+		if (existing instanceof FileProxy) {
+			FileProxy efp = (FileProxy) existing;
+			if (newLink instanceof FileProxy) {
+				FileProxy nlfp = (FileProxy) newLink;
+				Path path = Files.createLink(nlfp.target.toPath(), efp.target.toPath());
+				ret = new FileProxy(path.toFile(), this); 
+			}
+		}
+		return ret;
 	}
 
 

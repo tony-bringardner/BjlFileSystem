@@ -416,7 +416,6 @@ public class FileProxy implements FileSource {
 	 * @see us.bringardner.io.FileSource#getInputStream()
 	 */
 	public InputStream getInputStream() throws IOException {
-		target = target.getCanonicalFile();
 		return new FileInputStream(target);
 	}
 

@@ -52,7 +52,7 @@ import us.bringardner.io.filesource.FileSourceFactory;
 public abstract class FileSourceAbstractTestClass {
 
 	
-	public enum Permissions {
+	public static enum Permissions {
 		OwnerRead('r'),
 		OwnerWrite('w'),
 		OwnerExecute('x'),
@@ -137,7 +137,10 @@ public abstract class FileSourceAbstractTestClass {
 	}
 
 	public static void compare(String name,FileSource source, FileSource target) throws IOException {
-		assertTrue("Source file does not exist ("+source.getName()+")",source.exists());
+		assertTrue("Source file does not exist ("+
+				source.getName()+")",
+				source.exists()
+				);
 		assertTrue("Target file does not exist ("+
 		target.getName()+")",
 		target.exists()
@@ -208,8 +211,6 @@ public abstract class FileSourceAbstractTestClass {
 			
 		}
 	}
-
-	// 336-518-5261 Alan's Diana
 
 	public static void copy(InputStream in, OutputStream out) throws IOException {
 		// use a small buffer to get multiple reads 
@@ -309,7 +310,7 @@ public abstract class FileSourceAbstractTestClass {
 
 	}
 
-	private void renameAndValidate(FileSource source, FileSource target) throws IOException {
+	public static void renameAndValidate(FileSource source, FileSource target) throws IOException {
 		assertTrue(
 				source.renameTo(target)
 				,"Can't rename "+source+" to "+target);			
@@ -346,7 +347,7 @@ public abstract class FileSourceAbstractTestClass {
 		
 	}
 
-	private boolean setPermission(Permissions p, FileSource file,boolean b) throws IOException {
+	public static boolean setPermission(Permissions p, FileSource file,boolean b) throws IOException {
 		boolean ret = false;
 		switch (p) {
 		case OwnerRead: 	ret = file.setOwnerReadable(b); break;
@@ -368,7 +369,23 @@ public abstract class FileSourceAbstractTestClass {
 		return ret;
 	}
 	
-	private boolean getPermission(Permissions p, FileSource file) throws IOException {
+	public static void comparePermissions(FileSource file1, FileSource file2) throws IOException {
+		assertEquals(file1.canOwnerRead(), file2.canOwnerRead(),"canOwnerRead()");
+		assertEquals(file1.canOwnerWrite(), file2.canOwnerWrite(),"canOwnerWrite()");
+		assertEquals(file1.canOwnerExecute(), file2.canOwnerExecute(),"canOwnerExecute()");
+		
+		assertEquals(file1.canGroupRead(), file2.canGroupRead(),"canGroupRead()");
+		assertEquals(file1.canGroupWrite(), file2.canGroupWrite(),"canGroupWrite()");
+		assertEquals(file1.canGroupExecute(), file2.canGroupExecute(),"canGroupExecute()");
+		
+		assertEquals(file1.canOtherRead(), file2.canOtherRead(),"canOtherRead()");
+		assertEquals(file1.canOtherWrite(), file2.canOtherWrite(),"canOtherWrite()");
+		assertEquals(file1.canOtherExecute(), file2.canOtherExecute(),"canOtherExecute()");
+		
+		
+	}
+	
+	public static boolean getPermission(Permissions p, FileSource file) throws IOException {
 		boolean ret = false;
 		switch (p) {
 		case OwnerRead:    ret = file.canOwnerRead(); break;
@@ -389,7 +406,7 @@ public abstract class FileSourceAbstractTestClass {
 		return ret;
 	}
 	
-	private void changeAndValidatePermission(Permissions p, FileSource file) throws IOException {
+	public static void changeAndValidatePermission(Permissions p, FileSource file) throws IOException {
 		
 		//Get the current value		
 		boolean b = getPermission(p, file);

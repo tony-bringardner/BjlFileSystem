@@ -32,6 +32,9 @@ package us.bringardner.io.filesource.memory;
 import java.awt.Component;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +42,7 @@ import java.util.Properties;
 
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
+import us.bringardner.io.filesource.fileproxy.FileProxy;
 
 
 /**
@@ -47,14 +51,44 @@ import us.bringardner.io.filesource.FileSourceFactory;
  */
 public class MemoryFileSourceFactory extends FileSourceFactory {
 
-	/**
-	 * 
-	 */
 	private static final long serialVersionUID = 1L;
 
+	private static class Link implements InvocationHandler {
+
+		@SuppressWarnings("unused")
+		boolean hardLink = true;
+		MemoryFileSource existing;
+		MemoryFileSource link;
+		
+		public Link(MemoryFileSource source,MemoryFileSource link,boolean hardLink) {
+			this.existing = source;
+			this.link = link;
+			this.hardLink = hardLink;
+		}
+		
+		@Override
+		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+			Object ret = null;
+			String mname = method.getName();
+			
+			if(mname.equals("getLinkedTo") && !hardLink) {
+				ret = method.invoke(link, args);	
+			} else if(mname.equals("getName") || mname.equals("toString") || mname.equals("getCanonicalPath")) {
+				ret = method.invoke(link, args);
+			} else {
+				ret = method.invoke(existing, args);
+			}
+			 			   
+			return ret;
+		}
+		
+	}
+
+	
 	public static final String FACTORY_ID = "memory";
 
 	private static final String PROP_NAME = "name";
+	
 	
 	private volatile  MemoryFileSource [] roots;
 	private volatile FileSource currentDirectory;
@@ -300,6 +334,41 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 	@Override
 	public char getSeperatorChar() {
 		return File.separatorChar;
-	}	
+	}
+
+	FileSource getProxy(MemoryFileSource source,MemoryFileSource target,boolean hardLink) {
+		FileSource ret = (FileSource) Proxy.newProxyInstance(
+				  getClass().getClassLoader(), 
+				  new Class[] { FileSource.class }, 
+				  new Link(source,target,hardLink));
+
+		return ret;
+	}
+	
+	@Override
+	public FileSource createSymbolicLink(FileSource newLink, FileSource existing) throws IOException {
+		FileSource ret = createLink(newLink, existing, false);
+		return ret;
+	}
+
+
+	@Override
+	public FileSource createLink(FileSource newLink, FileSource existing) throws IOException {
+		FileSource ret = createLink(newLink, existing, true);
+		return ret;
+	}
+
+	private FileSource createLink(FileSource newLink, FileSource existing,boolean hardLink) throws IOException {
+		FileSource ret = newLink;
+		if (newLink instanceof MemoryFileSource) {
+			MemoryFileSource nfs = (MemoryFileSource) newLink;
+			if (existing instanceof MemoryFileSource) {
+				MemoryFileSource efs = (MemoryFileSource) existing;
+				ret = getProxy(efs, nfs, hardLink);
+				nfs.linkedTo = ret;
+			}
+		}
+		return ret;
+	}
 
 }

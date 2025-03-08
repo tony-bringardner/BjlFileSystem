@@ -63,6 +63,7 @@ import us.bringardner.io.filesource.ISeekableInputStream;
 public class MemoryFileSource implements FileSource {
 
 	private static final long serialVersionUID = 1L;
+
 	public enum FileType {Undefined,Directory,File};
 
 	boolean isRoot = false;
@@ -73,6 +74,7 @@ public class MemoryFileSource implements FileSource {
 	private FileSourceGroup group;
 	private FileSourceUser owner;
 	private MemoryFileSource parent;
+	FileSource linkedTo;
 	private Map<String,MemoryFileSource> kidsMap = new TreeMap<>();
 	private boolean canOwnerRead=true;
 	private boolean canOwnerWrite=true;
@@ -729,7 +731,7 @@ public class MemoryFileSource implements FileSource {
 
 	@Override
 	public FileSource getLinkedTo() {
-		return null;
+		return linkedTo;
 	}
 
 	@Override
