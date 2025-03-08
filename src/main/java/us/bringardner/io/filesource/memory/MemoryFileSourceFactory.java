@@ -42,7 +42,6 @@ import java.util.Properties;
 
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
-import us.bringardner.io.filesource.fileproxy.FileProxy;
 
 
 /**
