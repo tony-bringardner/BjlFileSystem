@@ -96,6 +96,10 @@ public class CommandLinePropertyEditor {
 				out.writeLine("Enter value for "+name+" or enter to keep '" +val+"'");
 
 				String line = in.readLine();
+				if( line == null ) {
+					line = "exit";
+				}
+				
 				if( line.isEmpty()) {
 					line = val;
 				}
