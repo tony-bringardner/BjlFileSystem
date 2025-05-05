@@ -76,9 +76,10 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	/**
 	 * Tests whether the application can read the 
 	 * file denoted by this abstract pathname.
-	 * This is only here for comparability with java.io.File.  canOwnerRead is a better chose.
+	 * This is only here for comparability with java.io.File.  
 	 * 
-	 * @return true if and only if the file system actually contains a file denoted by this abstract pathname and the application is allowed to write to the file; false otherwise.  
+	 * @return true if and only if the file system actually contains a file denoted by this abstract pathname 
+	 * 	and the application is allowed to write to the file; false otherwise.  
 	 * 
 	 */
 	default public boolean canRead()  {		
@@ -100,7 +101,7 @@ public interface FileSource extends Serializable, Comparable<Object> {
 
 	/**
 	 * Tests whether the application can modify the file denoted by this abstract pathname. 
-	 * This is only here for comparability with java.io.File.  canOwnerWrite is a better chose.
+	 * This is only here for comparability with java.io.File.  
 	 * 
 	 * @return
 	 * 
@@ -115,6 +116,28 @@ public interface FileSource extends Serializable, Comparable<Object> {
 				return canGroupWrite();
 			} 
 			return canOtherWrite();
+		} catch (Exception e) {
+		}
+		return false;
+	}
+
+	/**
+	 * Tests whether the application can execute the file denoted by this abstract pathname. 
+	 * This is only here for comparability with java.io.File.  
+	 * 
+	 * @return
+	 * 
+	 */
+	default public boolean canExecute() {
+		try {
+
+			FileSourceUser me = getFileSourceFactory().whoAmI();
+			if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
+				return canOwnerExecute();
+			} else if( me.hasGroup(getGroup().getName())) {
+				return canGroupExecute();
+			} 
+			return canOtherExecute();
 		} catch (Exception e) {
 		}
 		return false;
