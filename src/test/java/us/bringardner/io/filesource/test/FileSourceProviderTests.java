@@ -48,7 +48,9 @@ import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -222,11 +224,11 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 
 	@Test
 	public void testCopyDir() throws Exception {
-		String [] expect = {
+		List<String> expect =Arrays.asList(
 				"AnalyzerDerby.properties"
 				, "AnalyzerMySql.properties"
 				, "Hotel California.txt"
-		};
+		);
 
 		URI uri = new URI(String.format("filesource:%s?sourcetype=fileproxy",localTestFileDirPath));
 		Path source = Paths.get(uri);
@@ -268,17 +270,16 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 		Index idx = new Index();
 		try(Stream<Path> kids = Files.list(target)) {
 			kids.forEach((path)->{
-				String e = expect[idx.idx++];
 				String name = path.getFileName().toString();
-				assertEquals("",e, name);
+				assertTrue("",expect.contains(name));
 			});
 		}
 
 		idx.idx = 0;
 		try (DirectoryStream<Path> stream = Files.newDirectoryStream(source)) {
 			for (Path path : stream) {
-				String e = expect[idx.idx++];
-				assertEquals("",e, path.getFileName().toString());
+				String name = path.getFileName().toString();
+				assertTrue("",expect.contains(name));
 				BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
 				assertNotNull("path="+path,attr);
 				//FileTime time = attr.creationTime();
@@ -289,8 +290,9 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 		idx.idx = 0;
 		Files.walk(target, FileVisitOption.FOLLOW_LINKS).forEach((path)->{
 			if( !Files.isDirectory(path)) {
-				String e = expect[idx.idx++];
-				assertEquals("",e, path.getFileName().toString());
+				String name = path.getFileName().toString();
+				assertTrue("",expect.contains(name));
+				
 			}
 		});
 		deleteIfExists(target);

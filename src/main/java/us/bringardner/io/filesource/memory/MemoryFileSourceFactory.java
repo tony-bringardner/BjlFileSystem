@@ -326,13 +326,13 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 
 	@Override
 	public char getPathSeperatorChar() {
-		return File.pathSeparatorChar;
+		return ':';
 	}
 
 
 	@Override
 	public char getSeperatorChar() {
-		return File.separatorChar;
+		return '/';
 	}
 
 	FileSource getProxy(MemoryFileSource source,MemoryFileSource target,boolean hardLink) {
