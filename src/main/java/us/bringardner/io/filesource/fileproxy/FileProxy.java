@@ -409,7 +409,7 @@ public class FileProxy implements FileSource {
 	 * @see us.bringardner.io.FileSource#canWrite()
 	 */
 	public boolean canExecute() throws IOException {
-		return permissions.canWrite();
+		return permissions.canExecute();
 	}
 
 	@Override
