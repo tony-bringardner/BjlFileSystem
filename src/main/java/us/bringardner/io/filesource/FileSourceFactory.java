@@ -30,9 +30,9 @@
 package us.bringardner.io.filesource;
 
 import java.awt.Component;
-import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.Serializable;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -40,6 +40,7 @@ import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
 import java.nio.file.FileSystems;
+import java.nio.file.Paths;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
@@ -62,19 +63,19 @@ import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
  *
  */
 public abstract class FileSourceFactory extends BaseObject implements URLStreamHandlerFactory, Serializable {
-	
+
 	public static void main(String [] args) throws IOException {
 		getDefaultFactory().whoAmI();
 	}
-	
-	
+
+
 	private static final String DOT = ".";
 	private static final String DOT_DOT = "..";
 
 	public static String expandDots(String pathStr,char seperator) {
 		String path = pathStr.trim();
 
-		if( path.isEmpty()) {
+		if( path.isEmpty() || path.equals(DOT_DOT)) {
 			return path;
 		}
 
@@ -82,68 +83,20 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 			return "";
 		}
 
-		String one = ""+seperator;
-		String two = one+seperator;
-
-
-		while( path.indexOf(two) >=0) {
-			path = path.replaceAll(two, one);
+		if( File.separatorChar != seperator) {
+			path = path.replace(seperator,File.separatorChar);
 		}
 
+		String ret = Paths.get(path).normalize().toString();
 
-		//  I don't understand why the java native file system removes leading /.. but it does.
-		while(path.startsWith(""+seperator+DOT_DOT)) {
-			path = path.substring(3);
-		}
-
-		List<String> expanded = new ArrayList<>();
-		String [] parts = path.split("["+seperator+"]");
-
-
-		for (int idx1 = 0; idx1 < parts.length; idx1++) {
-
-			String name = parts[idx1].trim();
-			if(idx1 > 0 &&  name.isEmpty()) {
-				throw new RuntimeException(" have an empty name after removing all //. path='"+path+"'");
-			}
-			if( DOT.equals(name)) {
-				// ignore
-			} else if( name.equals(DOT_DOT) && 
-					expanded.size()>0 && 
-					!DOT_DOT.equals(
-							expanded.get(expanded.size()-1)
-							)
-					) {
-				expanded.remove(expanded.size()-1);
-			} else {
-				expanded.add(name);
-			}
-		}
-
-		StringBuilder buf = new StringBuilder();
-
-		for(int idx=0,sz=expanded.size(); idx < sz; idx++) {
-			if( idx>0) {
-				buf.append(seperator);
-			}			
-			buf.append(expanded.get(idx));
-		}
-
-		String ret = buf.toString().trim().replaceAll(two, one);
-		while( ret.indexOf(two) >=0) {
-			ret = ret.replaceAll(two, one);
-		}
-
-		// unique situation 
-		if( ret.startsWith(DOT_DOT) && path.startsWith(""+seperator)) {
-			ret = ret.substring(2);
-		}
-		if( ret.isEmpty() && path.startsWith(""+seperator)) {
-			ret = ""+seperator;
+		if( File.separatorChar != seperator) {
+			ret = ret. replace(File.separatorChar,seperator);
 		}
 
 		return ret;
 	}
+
+
 
 	/**
 	 * 
@@ -275,6 +228,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	/*
 	 * Create a FileSource identified by the URL given by 'url'
 	 */
+	@SuppressWarnings("deprecation")
 	public static FileSource getFileSource(String url) throws IOException {
 		return getFileSource(new URL(url));
 	}
@@ -546,7 +500,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	 * @throws IOException
 	 */
 	public abstract FileSource createSymbolicLink(FileSource newFileLink, FileSource existingFile) throws IOException ;
-	
+
 	/**
 	 * Creates a new link (directory entry) for an existing file.
 	 * 		The link parameter locates the directory entry to create. 
@@ -560,7 +514,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	 * @throws IOException
 	 */
 	public abstract FileSource createLink(FileSource newFileLink, FileSource existingFile) throws IOException ;
-	
+
 	/**
 	 * @param url
 	 * @return
@@ -621,14 +575,15 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	public abstract String getURL();
 
 	public FileSourceUser whoAmI() {
-	
-		
+
+
 		if( localPrinciple == null ) {
 			//*nix, including macOS,  system use id
-			String command = "id";
+			String [] command = {"id"};
 
 			if( isWindows() ) {
-				command = "whoami /groups";
+				String tmp []  = {"whoami","/user","/groups","/fo","list"};
+				command = tmp;
 			} 
 
 			ProcessBuilder builder = new ProcessBuilder(command);
@@ -641,21 +596,14 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 				} catch (InterruptedException e) {
 				}
 
-				StringBuilder out = new StringBuilder();
-				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-					String line = null;
-					while ((line = reader.readLine()) != null) {
-						out.append(line);
-						out.append("\n");
-					}					
+				String out = "";
+				try (InputStream reader = process.getInputStream()) {
+					out = new String(reader.readAllBytes());
 				}
 
-				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-					String line = null;
-					while ((line = reader.readLine()) != null) {
-						out.append(line);
-						out.append("\n");
-					}					
+				String err = "";
+				try (InputStream reader = process.getErrorStream()) {
+					err = new String(reader.readAllBytes());
 				}
 
 				if( status == 0 ) {
@@ -663,7 +611,10 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 					if( tmp != null ) {
 						localPrinciple = tmp;
 					}
-				} 
+				} else {
+					throw new IOException(err);
+				}
+				
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -682,7 +633,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				
+
 			}
 		}
 

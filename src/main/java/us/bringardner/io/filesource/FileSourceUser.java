@@ -1,7 +1,12 @@
 package us.bringardner.io.filesource;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -10,6 +15,116 @@ public class FileSourceUser extends FileSourcePrinciple implements UserPrincipal
 	
 	Map<Integer,FileSourceGroup> groups = new TreeMap<>();
 	FileSourceGroup group;
+	
+	/*
+	 User name                    tony
+Full Name
+Comment
+User's comment
+Country/region code          000 (System Default)
+Account active               Yes
+Account expires              Never
+
+Password last set            6/25/2025 8:03:14 AM
+Password expires             Never
+Password changeable          6/25/2025 8:03:14 AM
+Password required            No
+User may change password     Yes
+
+Workstations allowed         All
+Logon script
+User profile
+Home directory
+Last logon                   6/29/2025 8:55:40 PM
+
+Logon hours allowed          All
+
+Local Group Memberships      *Administrators       *Remote Desktop Users
+                             *Users
+	 */
+	public static FileSourceUser findUser(String userName) {
+		FileSourceUser ret = null;
+			//*nix, including macOS,  system use id
+			String [] command = {"id ???"};
+
+			if(FileSourceFactory. isWindows() ) {
+				int idx = userName.indexOf('\\');
+				if( idx > 0 ) {
+					userName = userName.substring(idx+1);
+				}
+				
+				String tmp []  = {"net","user",userName};
+				command = tmp;
+			} 
+
+			ProcessBuilder builder = new ProcessBuilder(command);
+			Process process;
+			try {
+				process = builder.start();
+				int status = -1;
+				try {
+					status = process.waitFor();
+				} catch (InterruptedException e) {
+				}
+
+				StringBuilder out = new StringBuilder();
+				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+					String line = null;
+					while ((line = reader.readLine()) != null) {
+						out.append(line);
+						out.append("\n");
+					}					
+				}
+
+				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+					String line = null;
+					while ((line = reader.readLine()) != null) {
+						out.append(line);
+						out.append("\n");
+					}					
+				}
+
+				if( status == 0 ) {
+					ret = new FileSourceUser(0, userName);
+					String text = out.toString();
+					int idx = text.indexOf("Local Group Memberships");
+					if( idx > 0 ) {
+						text = text.substring(idx+23);
+						idx = text.indexOf("Global Group memberships");
+						if( idx > 0 ) {
+							text = text.substring(0,idx).trim();
+						}
+						String group=null;
+						idx = text.indexOf('*');
+						while( idx >= 0 ) {
+							int idx2 = text.indexOf('*',idx+1);
+							if( idx2 >=0) {
+								group = text.substring(idx+1,idx2).trim();							
+							} else {
+								group = text.substring(idx+1).trim();
+							}
+							FileSourceGroup g=null;
+							int id = windowsGroups.indexOf(group);
+							if( id < 0 ) {
+								id = windowsGroups.size();
+								windowsGroups.add(group);							
+							} 
+							
+							g = new FileSourceGroup(id, group);
+							ret.addGroup(g);
+							
+							idx = idx2;
+						}
+					}
+					
+				} 
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+	
+			return ret;
+	}
+	
 	
 	public FileSourceUser() {}
 	
@@ -28,6 +143,13 @@ public class FileSourceUser extends FileSourcePrinciple implements UserPrincipal
 	}
 	
 	public boolean hasGroup(String groupName) {
+		if( FileSourceFactory.isWindows() ) {
+			int idx = groupName.indexOf('\\');
+			if( idx >= 0 ) {
+				groupName = groupName.substring(idx+1);
+			}
+		}
+		
 		boolean ret = false;
 		for(GroupPrincipal g : groups.values()) {
 			if( (ret=g.getName().equalsIgnoreCase(groupName))) {
@@ -77,6 +199,73 @@ public class FileSourceUser extends FileSourcePrinciple implements UserPrincipal
 		return ret.toString();
 	}
 	
+	public static FileSourceUser fromId(String idResponse) {
+		if(FileSourceFactory.isWindows()) {
+			return fromWindowsId(idResponse);
+		} else {
+			return fromUnixId(idResponse);
+		}
+	}
+	
+	/*
+	 
+USER INFORMATION
+----------------
+User Name: windowslaptop\tony
+SID:       S-1-5-21-4225293122-3422176466-2310549978-1007
+
+GROUP INFORMATION
+-----------------
+Group Name: Everyone
+Type:       Well-known group
+SID:        S-1-1-0
+Attributes: Mandatory group, Enabled by default, Enabled group
+	 */
+	private static List<String> windowsGroups = new ArrayList<>();
+	
+	private static FileSourceUser fromWindowsId(String idResponse) {
+		String lines [] = idResponse.split("\n");
+		FileSourceUser ret = null;
+		for(String line : lines) {
+			if( line.startsWith("User Name:")) {
+				int idx = line.lastIndexOf('\\');
+				if( idx > 0 ) {
+					String name = line.substring(idx+1).trim();
+					ret = new FileSourceUser(0, name);
+				}
+			} else if( line.startsWith("Group Name:")) {
+				if( ret !=null) {
+					if( line.contains("Label")) {
+						continue;
+					}
+					
+					int idx = line.indexOf('\\');
+					if( idx > 0 ) {
+						String name = line.substring(idx+1).trim();
+						idx = name.indexOf('\\');
+						if( idx > 0 ) {
+							name = name.substring(idx+1);							
+						}
+						
+						FileSourceGroup g=null;
+						int id = windowsGroups.indexOf(name);
+						if( id < 0 ) {
+							id = windowsGroups.size();
+							windowsGroups.add(name);							
+						} 
+						
+						g = new FileSourceGroup(id, name);
+						ret.addGroup(g);
+						
+					}
+
+				}
+			}
+		}
+		
+		return ret;
+	}
+
 	/**
 	 * 
 	 * @param idResponse:  response from the id command on *nix systems
@@ -85,7 +274,7 @@ public class FileSourceUser extends FileSourcePrinciple implements UserPrincipal
 	 * @return A FileSourcePrinciple representing the id response
 	 */
 	
-	public static FileSourceUser fromId(String idResponse) {
+	private static FileSourceUser fromUnixId(String idResponse) {
 		FileSourceUser ret = null;
 		if( idResponse !=null && !idResponse.isEmpty()) {
 			for(String part : idResponse.split(" ")) {
@@ -147,5 +336,10 @@ public class FileSourceUser extends FileSourcePrinciple implements UserPrincipal
 		
 		return null;
 		
+	}
+
+
+	public boolean hasGroup(UserPrincipal principal) {
+		return hasGroup(principal.getName());
 	}
 }

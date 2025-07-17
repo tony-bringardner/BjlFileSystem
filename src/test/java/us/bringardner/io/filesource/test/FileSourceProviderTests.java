@@ -77,6 +77,7 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 		remoteTestFileDirPath = "target/ProviderTests";		
 		localCacheDirPath = "target/ProviderTestsCache";
 		factory = new FileProxyFactory();		
+
 	}
 
 	@AfterAll
@@ -228,7 +229,7 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 				"AnalyzerDerby.properties"
 				, "AnalyzerMySql.properties"
 				, "Hotel California.txt"
-		);
+				);
 
 		URI uri = new URI(String.format("filesource:%s?sourcetype=fileproxy",localTestFileDirPath));
 		Path source = Paths.get(uri);
@@ -283,7 +284,7 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 				BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
 				assertNotNull("path="+path,attr);
 				//FileTime time = attr.creationTime();
-				
+
 			}
 		}
 
@@ -292,7 +293,7 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 			if( !Files.isDirectory(path)) {
 				String name = path.getFileName().toString();
 				assertTrue("",expect.contains(name));
-				
+
 			}
 		});
 		deleteIfExists(target);
@@ -384,7 +385,8 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 	@Test
 	public void testFileSourcePath () throws URISyntaxException, IOException {
 		//  just uses jrt path to normalize
-		Path filePath = Paths.get("/one/two/three");
+		Path filePath =  Paths.get("/one/two/three");
+		//Path filePath = !FileSourceFactory.isWindows()? Paths.get("\\one\\two\\three") :  Paths.get("/one/two/three");
 		URI uri = new URI("filesource:/one/two/three?sourcetype=fileproxy");
 		FileSourcePath fileSourcePath = new FileSourcePath(uri);
 		assertEquals("getFileName invalid", 
@@ -427,16 +429,22 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 				str,
 				str2
 				);
-		assertEquals("", 
-				filePath.toAbsolutePath().toString(), 
-				fileSourcePath.toAbsolutePath().toString()
-				);
 
-		assertEquals("resolve invalid", 
-				filePath.resolve(last).toString(),
-				fileSourcePath.resolve(last.toString()).toString());
+		if( !FileSourceFactory.isWindows()) {
+			assertEquals("", 
+					filePath.toAbsolutePath().toString(), 
+					fileSourcePath.toAbsolutePath().toString()
+					);
+			assertEquals("resolve invalid", 
+					filePath.resolve(last).toString(),
+					fileSourcePath.resolve(last).toString());
 
 
+		} else {
+			//  Windows does not handle relative paths correctly 
+			assertTrue("", fileSourcePath.toAbsolutePath().toString().endsWith( filePath.toAbsolutePath().toString().substring(2))	);
+			assertTrue("", fileSourcePath.resolve(last).toString().endsWith( filePath.resolve(last).toString().substring(2))	);
+		}
 
 	}
 
@@ -445,8 +453,8 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 	public void testNormalize() {
 		FileSourceFactory factory = FileSourceFactory.getDefaultFactory();
 		FileSystem fileSystem = FileSystems.getDefault();
-										//  Weighted toward dot and dot dot
-		String [] options = {".","..",".","..",".","..","one","two","/","three","four","five","six"};
+		//  Weighted toward dot and dot dot
+		String [] options = {".","..",".","..",".","..","one","two",""+factory.getSeperatorChar(),"three","four","five","six"};
 		Random r = new Random();
 		int numTests = 100;
 		while(--numTests > 0) {
@@ -464,13 +472,22 @@ public class FileSourceProviderTests extends FileSourceAbstractTestClass {
 			}
 			String filePathStr = fileBuf.toString();
 			String filesourcePathStr = filesourceBuf.toString();
-			String file    = Paths.get(filePathStr).normalize().toString();
-			String filesource   = new FileSourcePath(filesourcePathStr,factory).normalize().toString().replaceAll(""+factory.getSeperatorChar(), fileSystem.getSeparator());
-			if(! file.equals(filesource)) {
-				System.out.println("Not eq");
+			if( FileSourceFactory.isWindows()) {
+				while( filePathStr.startsWith("\\\\")) {
+					filePathStr = filePathStr.substring(1);
+					filesourcePathStr = filesourcePathStr.substring(1);
+				}
 			}
-			assertEquals("Normalized don't match", file, filesource);
+			String file    = Paths.get(filePathStr).normalize().toString();
+			Path filesource   = new FileSourcePath(filesourcePathStr,factory).
+					normalize();
+			String file2 = filesource.toString();
 			
+			if(! file.equals(file2)) {
+				System.out.println("Not eq");
+			} 
+			assertEquals("Normalized don't match", file, file2);
+
 		}
 	}
 

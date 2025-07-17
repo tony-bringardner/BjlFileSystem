@@ -76,7 +76,8 @@ public class FileSourcePath implements Path {
 				throw new IOException("Invalid path. No factory identified by "+fsuri);
 			}
 		}
-
+		//  only '/' are valid in URI
+		rawPath = rawPath.replace('/', factory.getSeperatorChar());
 
 	}
 
@@ -144,6 +145,9 @@ public class FileSourcePath implements Path {
 			path = path.substring(1);
 		}
 		String rx = "["+sep+"]";
+		if( sep == '\\') {
+			rx = "[\\\\]";
+		}
 		String [] ret= path.split(rx);
 		return ret;
 	}
@@ -251,9 +255,10 @@ public class FileSourcePath implements Path {
 			//If the other parameter is an absolute path then this method trivially returns other.
 			return other;
 		}
-		FileSourcePath fsp = ((FileSourcePath)other);
+	
+		//FileSourcePath fsp = ((FileSourcePath)other);
 
-		if( other.getNameCount()==0 || fsp.rawPath.isEmpty()) {
+		if( other.getNameCount()==0 ) {
 			//If other is an empty path then this method trivially returns this path.
 			return this;
 		}

@@ -84,11 +84,11 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 	public FileSourceFileSystemProvider() {
 
 	}
-	
-	static FileSourceFileSystemProvider singleton = new FileSourceFileSystemProvider();
-	
 
-	
+	static FileSourceFileSystemProvider singleton = new FileSourceFileSystemProvider();
+
+
+
 
 	private class FileSourcePosixFileAttributes implements PosixFileAttributes,BasicFileAttributes {
 
@@ -206,12 +206,24 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 			Set<PosixFilePermission> ret = EnumSet.noneOf(PosixFilePermission.class);
 
 			try {
-				if( file.canOwnerRead()) {ret.add(PosixFilePermission.OWNER_READ);}
-				if( file.canOwnerWrite()) {ret.add(PosixFilePermission.OWNER_WRITE);}
-				if( file.canOwnerExecute()) {ret.add(PosixFilePermission.OWNER_EXECUTE);}
-				if( file.canGroupRead()) {ret.add(PosixFilePermission.GROUP_READ);}
-				if( file.canGroupWrite()) {ret.add(PosixFilePermission.GROUP_WRITE);}
-				if( file.canGroupExecute()) {ret.add(PosixFilePermission.GROUP_EXECUTE);}
+				if( file.canOwnerRead()) {
+					ret.add(PosixFilePermission.OWNER_READ);
+				}
+				if( file.canOwnerWrite()) {
+					ret.add(PosixFilePermission.OWNER_WRITE);
+				}
+				if( file.canOwnerExecute()) {
+					ret.add(PosixFilePermission.OWNER_EXECUTE);
+				}
+				if( file.canGroupRead()) {
+					ret.add(PosixFilePermission.GROUP_READ);
+				}
+				if( file.canGroupWrite()) {
+					ret.add(PosixFilePermission.GROUP_WRITE);
+				}
+				if( file.canGroupExecute()) {
+					ret.add(PosixFilePermission.GROUP_EXECUTE);
+				}
 				if( file.canOtherRead()) {
 					ret.add(PosixFilePermission.OTHERS_READ);
 				}
@@ -334,7 +346,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 					case APPEND:append = true; break;
 					case CREATE_NEW: break;
 					case CREATE:
-					
+
 					case DELETE_ON_CLOSE:
 					case DSYNC:					
 					case SPARSE:
@@ -460,40 +472,40 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 			throw new NullPointerException("Permission may NOT be null");
 		}
 
-		
-			switch (p) {
-			case OWNER_READ: 
-				file.setOwnerReadable(b);
-				break;
-			case OWNER_WRITE: 
-				file.setOwnerWritable(b);
-				break;
-			case OWNER_EXECUTE:
-				file.setOwnerExecutable(b);
-				break;
 
-			case GROUP_READ: 
-				file.setGroupReadable(b);
-				break;
-			case GROUP_WRITE: 
-				file.setGroupWritable(b);
-				break;
-			case GROUP_EXECUTE: 
-				file.setGroupExecutable(b);
-				break;
+		switch (p) {
+		case OWNER_READ: 
+			file.setOwnerReadable(b);
+			break;
+		case OWNER_WRITE: 
+			file.setOwnerWritable(b);
+			break;
+		case OWNER_EXECUTE:
+			file.setOwnerExecutable(b);
+			break;
 
-			case OTHERS_READ: 
-				file.setOtherReadable(b);
-				break;
-			case OTHERS_WRITE: 
-				file.setOtherWritable(b);
-				break;
-			case OTHERS_EXECUTE: 
-				file.setOtherExecutable(b);
-				break;
+		case GROUP_READ: 
+			file.setGroupReadable(b);
+			break;
+		case GROUP_WRITE: 
+			file.setGroupWritable(b);
+			break;
+		case GROUP_EXECUTE: 
+			file.setGroupExecutable(b);
+			break;
 
-			}
-		
+		case OTHERS_READ: 
+			file.setOtherReadable(b);
+			break;
+		case OTHERS_WRITE: 
+			file.setOtherWritable(b);
+			break;
+		case OTHERS_EXECUTE: 
+			file.setOtherExecutable(b);
+			break;
+
+		}
+
 
 	}
 

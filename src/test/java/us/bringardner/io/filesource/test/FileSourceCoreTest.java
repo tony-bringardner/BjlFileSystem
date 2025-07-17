@@ -25,11 +25,9 @@
  */
 package us.bringardner.io.filesource.test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 
@@ -41,42 +39,70 @@ public class FileSourceCoreTest  {
 
 	@Test
 	public void testExpandDots() throws IOException {
-	
-	
-		String [] options = {
-				".",
-				"..",
-				"one",
-				"two",
-				"/",
-				"three","four","five","six"
-		};
-		Random r = new Random();
-		int numRuns = 100;
-		
-		while(--numRuns>0) {
-			int cnt = r.nextInt(20);
-			while(cnt <1) {
-				cnt = r.nextInt(20);
-			}
-			StringBuilder buf = new StringBuilder();
-			for(int idx=0; idx < cnt; idx++ ) {
-				if( idx>0) {
-					buf.append('/');
-				}
-				int pos = r.nextInt(options.length-1);
-				buf.append(options[pos]);
-			}
-			String pathStr = "./"+buf.toString();
 
-			String u    = Paths.get(pathStr).normalize().toString();
-			String me   = FileSourceFactory.expandDots(pathStr, '/');
-			if( !me.equals(u)) {
-				System.out.println("String path1=\""+pathStr+"\";");
-				System.out.println("//String me=\""+me+"\";");
-				System.out.println("String expect=\""+u+"\";");
+		char sep = '/';//File.separatorChar;
+
+		String paths [] = {
+				"one///five/one/one/./one/.///.././////four/..///one",
+				"////one/./five/..///./one/five/.///five/one",
+				"three/two/two/four/one/three/three/five///two/./..//",
+				"//../.././five/two/one/./../two/.",
+				".///../four/one///.././../..///././two/three/..",
+				"./////../five/////../three/three/.///three",
+				"one/three/five///two/./two/two",
+				"one/two///one/two/////..",
+				"two/./../five/..//",
+				"//five/five/two///.././//two//",
+				"five/.././../four/five///./../one/two/.///five/.//",
+
+				"./../////two/./one/five/two/one///////one/.///one/four",
+				"one/two/../five/one/.///./five///five/.",
+
+				"//three/./two///.././five///five/one/./two/./two/one",
+				"../////../one/./three/..//",
+				"five///three/two///four/..///../one/five/three/../../two",
+				"..///./..///one/three/../four///three/.///one/../five/two/four/.",
+				"//two/one///one///./../////../two/two/one/one",
+				"./../..//",
+				"./one/two/../four/two/../..///../one/two//",
+				"////five/./three/./.././/",
+				"////./three/////five/..",
+				"////./five/./two/.//",
+				"three/one/one/one/./////one/.",
+				"//////one///../five",
+				"../..///./two/three///two///five/one",
+				"three/////five///three/three/one/four/.",
+				"../four/three/two/five",
+				".././two///five/////./four",
+				"//./one/five///four/five///../one/../../..",
+				"./../three/three/../one",
+				"//../three/four/////one///four/../..///./../../three//",
+				"////five/.///..///five//",
+				"./four/./one/../one/../two/////three//",
+				"..///.",
+				"././//one/three/four/five/four/./../two/.",
+				"one/../three/two///one/three/two/./three/./three/../one/one/./three"
+
+		};
+
+		for (int idx = 0; idx < paths.length; idx++) {
+			String actual   = FileSourceFactory.expandDots(paths[idx],sep);
+
+			String tmp = paths[idx];
+
+			if( sep != File.separatorChar) {
+				tmp = tmp.replace(sep, File.separatorChar);
 			}
-			assertEquals(u,me,"Bad dot expantion path='"+pathStr+"'");
+			String expect = Paths.get(tmp).normalize().toString();
+			if( sep != File.separatorChar) {
+				expect = expect.replace( File.separatorChar,sep);
+			}
+			if( !actual.equals(expect)) {
+				System.out.println("pathStr=\""+paths[idx]+"\";");
+				System.out.println("actual=\""+actual+"\";");
+				System.out.println("expect=\""+expect+"\";");
+			}
+			//System.out.println(paths[idx]+","+expect+","+actual);
 		}
 	}
 

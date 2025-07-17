@@ -61,30 +61,30 @@ public class FileSourceMemoryLinkTests {
 
 	@BeforeAll
 	public static void beforeAll() throws IOException  {
-		System.out.println("Enter beforeAll");
+		//System.out.println("Enter beforeAll");
 		localTestFileDirPath = "TestFiles";
 		localCacheDirPath = "target/MemoryLinkCache";
 		remoteTestFileDirPath = "target/MemoryLinkTests";		
 		
 		factory = new MemoryFileSourceFactory();
 		
-		System.out.println("Exit beforeAll");
+		//System.out.println("Exit beforeAll");
 	}
 	
 	@AfterAll
 	static void afterAll()  {
-		System.out.println("Enter afterAll");
+		//System.out.println("Enter afterAll");
 		if( factory != null ) {
 			try {
 				factory.disConnect();
 			} catch (Throwable e) {
 			}
 		}
-		System.out.println("Exit afterAll");
+		//System.out.println("Exit afterAll");
 	}
 	
 	public void createLocalCache() throws IOException {
-		System.out.println("Enter testCreateLocalCache");
+		//System.out.println("Enter testCreateLocalCache");
 		FileSource _localDir = FileSourceFactory.getDefaultFactory().createFileSource(localTestFileDirPath);
 		assertTrue("local test dir does not exist ="+_localDir,_localDir.isDirectory());
 
@@ -110,14 +110,14 @@ public class FileSourceMemoryLinkTests {
 		//  Make another copy of the local test directory
 		copy(cacheDir,remoteDir);
 
-		System.out.println("Exit testCreateLocalCache");
+		//System.out.println("Exit testCreateLocalCache");
 		
 	}
 
 	@Test 
 	@Order(1)
 	public void testSymbolicLink() throws IOException {
-		System.out.println("Enter testSymbolicLink");
+		//System.out.println("Enter testSymbolicLink");
 		createLocalCache();
 		FileSource remoteDir = factory.createFileSource(remoteTestFileDirPath);
 		FileSource [] kids = remoteDir.listFiles();
@@ -136,13 +136,13 @@ public class FileSourceMemoryLinkTests {
 			assertEquals(link2.getAbsolutePath(), existing.getAbsolutePath());
 			
 		}
-		System.out.println("Exit testSymbolicLink");
+		//System.out.println("Exit testSymbolicLink");
 	}
 		
 	@Test 
 	@Order(2)
 	public void testHardLink() throws IOException {
-		System.out.println("Enter testHardLink");
+		//System.out.println("Enter testHardLink");
 		createLocalCache();
 		FileSource remoteDir = factory.createFileSource(remoteTestFileDirPath);
 		FileSource [] kids = remoteDir.listFiles();
@@ -160,7 +160,7 @@ public class FileSourceMemoryLinkTests {
 			assertNull(link2);			
 			
 		}
-		System.out.println("Exit testHardLink");
+		//System.out.println("Exit testHardLink");
 	}
 
 }

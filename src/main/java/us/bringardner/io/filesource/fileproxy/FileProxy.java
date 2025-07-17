@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -49,6 +50,7 @@ import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.UserDefinedFileAttributeView;
 import java.nio.file.attribute.UserPrincipal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -71,15 +73,278 @@ import us.bringardner.io.filesource.ISeekableInputStream;
  */
 public class FileProxy implements FileSource {
 
+	public interface PermissionManager {
+		boolean canRead() throws IOException;
+		boolean canWrite() throws IOException;
+		boolean canExecute() throws IOException;
+		boolean canOwnerExecute() throws IOException;
+		boolean canOwnerRead() throws IOException;
+		boolean canOwnerWrite() throws IOException;
+		boolean canGroupRead() throws IOException;
+		boolean canGroupWrite() throws IOException;
+		boolean canGroupExecute() throws IOException;
+		boolean canOtherRead() throws IOException;
+		boolean canOtherWrite() throws IOException;
+		boolean canOtherExecute() throws IOException;
+
+		boolean setExecutable(boolean b, boolean ownerOnly) throws IOException;
+		boolean setReadable(boolean b, boolean  ownerOnly) throws IOException;
+		boolean setWritable(boolean b, boolean  ownerOnly) throws IOException;
+		boolean setExecutable(boolean b) throws IOException;
+		boolean setReadable(boolean b) throws IOException;
+		boolean setWritable(boolean b) throws IOException;
+		boolean setGroupExecutable(boolean b) throws IOException;
+		boolean setGroupReadable(boolean b) throws IOException;
+		boolean setGroupWritable(boolean b) throws IOException;
+		boolean setOwnerReadable(boolean b) throws IOException;
+		boolean setOwnerWritable(boolean b) throws IOException;
+		boolean setOwnerExecutable(boolean b) throws IOException;
+		boolean setOtherReadable(boolean b) throws IOException;
+		boolean setOtherWritable(boolean b) throws IOException;
+		boolean setOtherExecutable(boolean b) throws IOException;
+
+		public boolean setLastAccessTime(long time) throws IOException ;
+
+		public boolean setCreateTime(long time) throws IOException;
+		public boolean setGroup(GroupPrincipal group) throws IOException; 
+	}
+
+	private class PosixPermissionManager implements PermissionManager {
+		/* (non-Javadoc)
+		 * @see us.bringardner.io.FileSource#canRead()
+		 */
+		public boolean canRead() throws IOException {
+			return target.canRead();
+		}
+
+		/* (non-Javadoc)
+		 * @see us.bringardner.io.FileSource#canWrite()
+		 */
+		public boolean canWrite() {
+			return target.canWrite();
+		}
+		
+		@Override
+		public boolean canExecute() throws IOException {
+			return target.canExecute();
+		}
+
+		@Override
+		public boolean canOwnerExecute() throws IOException {
+			boolean ret = false;
+			Set<PosixFilePermission> p = getPosixPermissions();
+			if( p != null ) {
+				ret =  p.contains(PosixFilePermission.OWNER_EXECUTE);
+			}
+			return ret;
+		}
+
+		@Override
+		public boolean canOwnerRead() throws IOException {		 
+			return canRead();
+		}
+		@Override
+		public boolean canOwnerWrite() throws IOException {		
+			return canWrite();
+		}
+		@Override
+		public boolean canGroupRead() throws IOException {
+			boolean ret = false;
+			Set<PosixFilePermission> p = getPosixPermissions();
+			if( p != null ) {
+				ret =  p.contains(PosixFilePermission.GROUP_READ);
+			}
+			return ret;
+		}
+		@Override
+		public boolean canGroupWrite() throws IOException {
+			boolean ret = false;
+			Set<PosixFilePermission> p = getPosixPermissions();
+			if( p != null ) {
+				ret =  p.contains(PosixFilePermission.GROUP_WRITE);
+			}
+			return ret;
+		}
+
+		@Override
+		public boolean canGroupExecute() throws IOException {
+			boolean ret = false;
+			Set<PosixFilePermission> p = getPosixPermissions();
+			if( p != null ) {
+				ret =  p.contains(PosixFilePermission.GROUP_EXECUTE);
+			}
+			return ret;
+		}
+
+		@Override
+		public boolean canOtherRead() throws IOException {
+			boolean ret = false;
+			Set<PosixFilePermission> p = getPosixPermissions();
+			if( p != null ) {
+				ret =  p.contains(PosixFilePermission.OTHERS_READ);
+			}
+			return ret;
+		}
+
+		@Override
+		public boolean canOtherWrite() throws IOException {
+			boolean ret = false;
+			Set<PosixFilePermission> p = getPosixPermissions();
+			if( p != null ) {
+				ret =  p.contains(PosixFilePermission.OTHERS_WRITE);
+			}
+			return ret;
+		}
+		@Override
+		public boolean canOtherExecute() throws IOException {
+			boolean ret = false;
+			Set<PosixFilePermission> p = getPosixPermissions();
+			if( p != null ) {
+				ret =  p.contains(PosixFilePermission.OTHERS_EXECUTE);
+			}
+			return ret;
+		}
+
+		@Override
+		public boolean setExecutable(boolean executable, boolean ownerOnly) {
+			return target.setExecutable(executable, ownerOnly);		
+		}
+
+
+
+		@Override
+		public boolean setReadable(boolean readable, boolean ownerOnly) {
+			return target.setReadable(readable, ownerOnly);
+
+		}
+
+
+
+		@Override
+		public boolean setWritable(boolean writetable, boolean ownerOnly) {
+			return target.setWritable(writetable, ownerOnly);
+
+		}
+
+
+
+		@Override
+		public boolean setExecutable(boolean executable)  throws IOException {
+			return target.setExecutable(executable);
+
+		}
+
+
+
+		@Override
+		public boolean setReadable(boolean readable) throws IOException {
+			boolean ret = target.setReadable(readable);
+			return ret;
+
+		}
+
+
+
+		@Override
+		public boolean setWritable(boolean writetable)  throws IOException {
+			return target.setWritable(writetable);		
+		}
+
+		@Override
+		public boolean setGroupExecutable(boolean executable) throws IOException {
+			return setPosixPermision(executable, PosixFilePermission.GROUP_EXECUTE);		
+		}
+
+		@Override
+		public boolean setGroupReadable(boolean readable) throws IOException {
+			return setPosixPermision(readable, PosixFilePermission.GROUP_READ);
+		}
+
+		@Override
+		public boolean setGroupWritable(boolean writeable) throws IOException {
+			return setPosixPermision(writeable, PosixFilePermission.GROUP_WRITE);
+		}
+
+		@Override
+		public boolean setOwnerReadable(boolean readable) throws IOException {
+			return setPosixPermision(readable, PosixFilePermission.OWNER_READ);
+		}
+
+		@Override
+		public boolean setOwnerWritable(boolean writeable) throws IOException {
+			return setPosixPermision(writeable, PosixFilePermission.OWNER_WRITE);
+		}
+
+		@Override
+		public boolean setOwnerExecutable(boolean executable) throws IOException {		
+			return setPosixPermision(executable, PosixFilePermission.OWNER_EXECUTE);
+		}
+
+		@Override
+		public boolean setOtherReadable(boolean readable) throws IOException {
+			return setPosixPermision(readable,PosixFilePermission.OTHERS_READ);
+		}
+
+		@Override
+		public boolean setOtherWritable(boolean writeable) throws IOException {
+			return setPosixPermision(writeable,PosixFilePermission.OTHERS_WRITE);
+		}
+
+		@Override
+		public boolean setOtherExecutable(boolean executable) throws IOException {
+			return setPosixPermision(executable,PosixFilePermission.OTHERS_EXECUTE);
+		}
+		@Override
+		public boolean setLastAccessTime(long time) throws IOException {
+
+			try {
+				PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
+				v.setTimes(null,FileTime.from(Instant.ofEpochMilli(time)), null);
+
+			} catch(Throwable e) {
+				return false;
+			}
+
+			return true;
+		}
+
+		@Override
+		public boolean setCreateTime(long time) throws IOException {
+			try {
+				PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
+				v.setTimes(null,null,FileTime.from(Instant.ofEpochMilli(time)));			
+			} catch(Throwable e) {
+				return false;
+			}
+
+			return true;
+		}
+
+		@Override
+		public boolean setGroup(GroupPrincipal group) throws IOException {
+			try {
+				PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
+				v.setGroup(group);
+			} catch (Exception e) {
+				return false;
+			}				
+			return true;
+		}
+
+		
+
+	}
+
 	private static final long serialVersionUID = 1L;
 	File target; 
 	private String name;
 	private FileSourceFactory theCreator ;
 	private GroupPrincipal group;
 	private UserPrincipal owner;
-	
+	private PermissionManager permissions;
 
 	public FileProxy(File target,FileSourceFactory creator) {
+		permissions= FileSourceFactory.isWindows()?new WindowsPermissionManager(target): new PosixPermissionManager();
 		this.target = target;
 		this.theCreator = creator;
 	}
@@ -93,27 +358,26 @@ public class FileProxy implements FileSource {
 				ret = at.permissions();
 			}
 		}
-		
+
 		return ret;
 	}
 
 
-	private boolean setPosixPermision(boolean b, PosixFilePermission p) throws IOException {
-		Set<PosixFilePermission> perms = getPosixPermissions();
+	private boolean setPosixPermision(boolean value, PosixFilePermission p) throws IOException {
+		boolean ret = false;
+		UserDefinedFileAttributeView view = Files.getFileAttributeView(target.toPath(), UserDefinedFileAttributeView.class);
+		ByteBuffer buf = ByteBuffer.allocate(1);
+		buf.put(value?(byte)1:(byte)2);
+		buf.rewind();
+		try {
+			int i2 = view.write(p.name(),buf);
+			if( i2 == 1) {
+				ret = true;	
+			}
+		} catch (IOException e) {
+		}
 		
-		if(b) {
-			if( !perms.contains(p)) {
-				perms.add(p);
-				Files.setPosixFilePermissions(target.toPath(), perms);
-			}
-		} else {
-			if( perms.contains(p)) {
-				perms.remove(p);
-				Files.setPosixFilePermissions(target.toPath(), perms);
-			}
-		}	
-		// no errors so I assume it worked
-		return true;
+		return ret;
 	}
 
 	/* (non-Javadoc)
@@ -123,95 +387,68 @@ public class FileProxy implements FileSource {
 		return target.getAbsolutePath().compareTo(o.toString());
 	}
 
-	
+
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#canRead()
 	 */
-	public boolean canRead() {
-		return target.canRead();
+	public boolean canRead() throws IOException {
+		return permissions.canRead();
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#canWrite()
 	 */
-	public boolean canWrite() {
-		return target.canWrite();
+	public boolean canWrite() throws IOException {
+		return permissions.canWrite();
 	}
-	
+
+	/* (non-Javadoc)
+	 * @see us.bringardner.io.FileSource#canWrite()
+	 */
+	public boolean canExecute() throws IOException {
+		return permissions.canWrite();
+	}
+
 	@Override
 	public boolean canOwnerExecute() throws IOException {
-		boolean ret = false;
-		Set<PosixFilePermission> p = getPosixPermissions();
-		if( p != null ) {
-			ret =  p.contains(PosixFilePermission.OWNER_EXECUTE);
-		}
-		return ret;
+		return permissions.canOwnerExecute();
 	}
-	
+
 	@Override
 	public boolean canOwnerRead() throws IOException {		 
-		return canRead();
+		return permissions.canOwnerRead();
 	}
 	@Override
 	public boolean canOwnerWrite() throws IOException {		
-		return canWrite();
+		return permissions.canOwnerWrite();
 	}
 	@Override
 	public boolean canGroupRead() throws IOException {
-		boolean ret = false;
-		Set<PosixFilePermission> p = getPosixPermissions();
-		if( p != null ) {
-			ret =  p.contains(PosixFilePermission.GROUP_READ);
-		}
-		return ret;
+		return permissions.canGroupRead();
 	}
 	@Override
 	public boolean canGroupWrite() throws IOException {
-		boolean ret = false;
-		Set<PosixFilePermission> p = getPosixPermissions();
-		if( p != null ) {
-			ret =  p.contains(PosixFilePermission.GROUP_WRITE);
-		}
-		return ret;
+		return permissions.canGroupWrite();
 	}
-	
+
 	@Override
 	public boolean canGroupExecute() throws IOException {
-		boolean ret = false;
-		Set<PosixFilePermission> p = getPosixPermissions();
-		if( p != null ) {
-			ret =  p.contains(PosixFilePermission.GROUP_EXECUTE);
-		}
-		return ret;
+		return permissions.canGroupExecute();
 	}
-	
+
 	@Override
 	public boolean canOtherRead() throws IOException {
-		boolean ret = false;
-		Set<PosixFilePermission> p = getPosixPermissions();
-		if( p != null ) {
-			ret =  p.contains(PosixFilePermission.OTHERS_READ);
-		}
-		return ret;
+		return permissions.canOtherRead();
 	}
-	
+
 	@Override
 	public boolean canOtherWrite() throws IOException {
-		boolean ret = false;
-		Set<PosixFilePermission> p = getPosixPermissions();
-		if( p != null ) {
-			ret =  p.contains(PosixFilePermission.OTHERS_WRITE);
-		}
-		return ret;
+		return permissions.canOtherWrite();
 	}
+
 	@Override
 	public boolean canOtherExecute() throws IOException {
-		boolean ret = false;
-		Set<PosixFilePermission> p = getPosixPermissions();
-		if( p != null ) {
-			ret =  p.contains(PosixFilePermission.OTHERS_EXECUTE);
-		}
-		return ret;
+		return permissions.canOtherExecute();
 	}
 
 	/* (non-Javadoc)
@@ -272,10 +509,10 @@ public class FileProxy implements FileSource {
 	public boolean isChildOfMine(FileSource child) {
 		boolean ret = (child instanceof FileProxy);
 		if( ret ){
-				String p1 = child.getAbsolutePath();
-				String p2 = getAbsolutePath();
-				ret = p1.startsWith(p2);
-			
+			String p1 = child.getAbsolutePath();
+			String p2 = getAbsolutePath();
+			ret = p1.startsWith(p2);
+
 		}
 
 		return ret;
@@ -388,6 +625,7 @@ public class FileProxy implements FileSource {
 
 		try {
 			ret = target.renameTo(new File (dest.getCanonicalPath()));
+			name = null;
 		} catch (IOException e) {
 			e.printStackTrace();
 		} 
@@ -395,7 +633,7 @@ public class FileProxy implements FileSource {
 		return ret; 
 	}
 
-	
+
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#setLastModified(long)
 	 */
@@ -403,7 +641,7 @@ public class FileProxy implements FileSource {
 	public boolean setLastModifiedTime(long time) {
 		return target.setLastModified(time);		
 	}
-	
+
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#setReadOnly()
@@ -453,6 +691,7 @@ public class FileProxy implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#toURL()
 	 */
+	@SuppressWarnings("deprecation")
 	public URL toURL() throws MalformedURLException {
 		URL ret = null;
 
@@ -554,41 +793,34 @@ public class FileProxy implements FileSource {
 	public UserPrincipal getOwner() throws IOException {
 		if(owner == null ) {
 			synchronized (this) {
-				PosixFileAttributeView view2 = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class,LinkOption.NOFOLLOW_LINKS);
-				if (view2 != null) {
-					PosixFileAttributes at = view2.readAttributes();
-					owner = at.owner();
-					if( owner == null ) {
-						owner = new UserPrincipal() {
-							@Override
-							public String getName() {
-								return "Unknown";
-							}
-						};
-					}
-				}
+				owner = Files.getOwner(target.toPath());	
 			}
 		}
 
 		return owner;
 	}
-	
+
 	@Override
 	public GroupPrincipal getGroup() throws IOException {
 		if( group == null ) {
 			synchronized (this) {
-				PosixFileAttributeView view2 = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class,LinkOption.NOFOLLOW_LINKS);
-				if (view2 != null) {
-					PosixFileAttributes at = view2.readAttributes();
-					group = at.group();
-					if( group == null ) {
-						group = new GroupPrincipal() {
+				if (permissions instanceof WindowsPermissionManager) {
+					WindowsPermissionManager wpm = (WindowsPermissionManager) permissions;
+					group = (GroupPrincipal) wpm.getGroupPrincipal();
+				} else {
+					PosixFileAttributeView view2 = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class,LinkOption.NOFOLLOW_LINKS);
+					if (view2 != null) {
+						PosixFileAttributes at = view2.readAttributes();
+						group = at.group();
+						if( group == null ) {
+							group = new GroupPrincipal() {
 
-							@Override
-							public String getName() {
-								return "Unknown";
-							}
-						};
+								@Override
+								public String getName() {
+									return "Unknown";
+								}
+							};
+						}
 					}
 				}
 			}
@@ -669,7 +901,7 @@ public class FileProxy implements FileSource {
 		return target;
 	}
 
-	
+
 	@Override
 	public String getTitle() {
 		return "Local";
@@ -721,92 +953,93 @@ public class FileProxy implements FileSource {
 
 
 	@Override
-	public boolean setExecutable(boolean executable, boolean ownerOnly) {
-		return target.setExecutable(executable, ownerOnly);		
+	public boolean setExecutable(boolean executable, boolean ownerOnly) throws IOException {
+		return permissions.setExecutable(executable, ownerOnly);		
 	}
 
 
 
 	@Override
-	public boolean setReadable(boolean readable, boolean ownerOnly) {
-		return target.setReadable(readable, ownerOnly);
-		
+	public boolean setReadable(boolean readable, boolean ownerOnly) throws IOException {
+		return permissions.setReadable(readable, ownerOnly);
+
 	}
 
 
 
 	@Override
-	public boolean setWritable(boolean writetable, boolean ownerOnly) {
-		return target.setWritable(writetable, ownerOnly);
-		
+	public boolean setWritable(boolean writetable, boolean ownerOnly) throws IOException {
+		return permissions.setWritable(writetable, ownerOnly);
+
 	}
 
 
 
 	@Override
 	public boolean setExecutable(boolean executable)  throws IOException {
-		return target.setExecutable(executable);
-		
+		return permissions.setExecutable(executable);
+
 	}
 
 
 
 	@Override
 	public boolean setReadable(boolean readable) throws IOException {
-		return target.setReadable(readable);
-		
+		boolean ret = permissions.setReadable(readable);
+		return ret;
+
 	}
 
 
 
 	@Override
 	public boolean setWritable(boolean writetable)  throws IOException {
-		return target.setWritable(writetable);		
+		return permissions.setWritable(writetable);		
 	}
 
 	@Override
 	public boolean setGroupExecutable(boolean executable) throws IOException {
-		return setPosixPermision(executable, PosixFilePermission.GROUP_EXECUTE);		
+		return permissions.setGroupExecutable(executable);		
 	}
-	
+
 	@Override
 	public boolean setGroupReadable(boolean readable) throws IOException {
-		return setPosixPermision(readable, PosixFilePermission.GROUP_READ);
+		return permissions.setGroupReadable(readable);
 	}
-	
+
 	@Override
 	public boolean setGroupWritable(boolean writeable) throws IOException {
-		return setPosixPermision(writeable, PosixFilePermission.GROUP_WRITE);
+		return permissions.setGroupWritable(writeable);
 	}
-	
+
 	@Override
 	public boolean setOwnerReadable(boolean readable) throws IOException {
-		return setReadable(readable);
+		return permissions.setOwnerReadable(readable);
 	}
-	
+
 	@Override
 	public boolean setOwnerWritable(boolean writeable) throws IOException {
-		return setWritable(writeable);
+		return permissions.setOwnerWritable(writeable);
 	}
-	
+
 	@Override
 	public boolean setOwnerExecutable(boolean executable) throws IOException {		
-		return setExecutable(executable);
+		return permissions.setOwnerExecutable(executable);
 	}
-	
+
 	@Override
 	public boolean setOtherReadable(boolean readable) throws IOException {
-		return setPosixPermision(readable,PosixFilePermission.OTHERS_READ);
+		return permissions.setOtherReadable(readable);
 	}
-	
+
 	@Override
 	public boolean setOtherWritable(boolean writeable) throws IOException {
-		return setPosixPermision(writeable,PosixFilePermission.OTHERS_WRITE);
+		return permissions.setOtherWritable(writeable);
 	}
-	
+
 	@Override
 	public boolean setOtherExecutable(boolean executable) throws IOException {
-		return setPosixPermision(executable,PosixFilePermission.OTHERS_EXECUTE);
+		return permissions.setOtherExecutable(executable);
 	}
 
 	@Override
@@ -824,40 +1057,18 @@ public class FileProxy implements FileSource {
 	}
 
 	@Override
-	public boolean setLastAccessTime(long time) throws IOException {
-		
-		try {
-			PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
-			v.setTimes(null,FileTime.from(Instant.ofEpochMilli(time)), null);
-			
-		} catch(Throwable e) {
-			return false;
-		}
-		
-		return true;
+	public boolean setLastAccessTime(long time) throws IOException {		
+		return permissions.setLastAccessTime(time);
 	}
 
 	@Override
 	public boolean setCreateTime(long time) throws IOException {
-		try {
-			PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
-			v.setTimes(null,null,FileTime.from(Instant.ofEpochMilli(time)));			
-		} catch(Throwable e) {
-			return false;
-		}
-		
-		return true;
+		return permissions.setCreateTime(time);
 	}
 
 	@Override
 	public boolean setGroup(GroupPrincipal group) throws IOException {
-		try {
-			PosixFileAttributeView v = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class);
-			v.setGroup(group);
-		} catch (Exception e) {
-			return false;
-		}				
-		return true;
+		return permissions.setGroup(group);
 	}
 
 	@Override
@@ -873,7 +1084,7 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public IRandomAccessStream getRandomAccessStream(String mode) throws IOException {
-		
+
 		return new FileSourceRandomAccessStream(new FileProxyRandomAccessIoController(this, mode), mode);
 	}
 

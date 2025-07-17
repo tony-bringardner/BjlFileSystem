@@ -80,9 +80,10 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * 
 	 * @return true if and only if the file system actually contains a file denoted by this abstract pathname 
 	 * 	and the application is allowed to write to the file; false otherwise.  
+	 * @throws IOException 
 	 * 
 	 */
-	default public boolean canRead()  {		
+	default public boolean canRead() throws IOException  {		
 		try {
 
 			FileSourceUser me = getFileSourceFactory().whoAmI();
@@ -104,9 +105,10 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * This is only here for comparability with java.io.File.  
 	 * 
 	 * @return
+	 * @throws IOException 
 	 * 
 	 */
-	default public boolean canWrite() {
+	default public boolean canWrite() throws IOException {
 		try {
 
 			FileSourceUser me = getFileSourceFactory().whoAmI();
@@ -126,9 +128,10 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * This is only here for comparability with java.io.File.  
 	 * 
 	 * @return
+	 * @throws IOException 
 	 * 
 	 */
-	default public boolean canExecute() {
+	default public boolean canExecute() throws IOException {
 		try {
 
 			FileSourceUser me = getFileSourceFactory().whoAmI();

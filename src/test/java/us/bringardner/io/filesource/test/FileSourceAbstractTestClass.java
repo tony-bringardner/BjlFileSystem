@@ -111,8 +111,11 @@ public abstract class FileSourceAbstractTestClass {
 
 	public static void deleteAll(FileSource file) throws IOException {
 		if( file.isDirectory()) {
-			for(FileSource child : file.listFiles()) {
+			FileSource[] kids = file.listFiles();
+			if( kids !=null ) {
+			for(FileSource child :kids) {
 				deleteAll(child);
+			}
 			}
 		}
 		assertTrue("Can't delete "+file,
@@ -262,14 +265,9 @@ public abstract class FileSourceAbstractTestClass {
 		copy(_localDir,cacheDir);
 
 		FileSource remoteDir = factory.createFileSource(remoteTestFileDirPath);
-		traverseDir(remoteDir, null);
-		if( !remoteDir.exists()) {
-			assertTrue("Cannot create remote directory"+remoteDir,
-					remoteDir.mkdirs()
-					);			
+		if(remoteDir.exists()) {
+			deleteAll(remoteDir);			
 		}
-		traverseDir(remoteDir, null);
-
 
 
 		for(FileSource source : cacheDir.listFiles()) {
@@ -335,8 +333,7 @@ public abstract class FileSourceAbstractTestClass {
 			out.write("Put some data in the file".getBytes());
 		}
 		
-
-		for(Permissions p : Permissions.values()) {
+	for(Permissions p : Permissions.values()) {
 			//  if we turn off owner write we won't be able to turn it back on.
 			if( p != Permissions.OwnerWrite) {
 				changeAndValidatePermission(p,file);
@@ -412,12 +409,16 @@ public abstract class FileSourceAbstractTestClass {
 		boolean b = getPermission(p, file);
 		
 		// toggle it 
-		assertTrue(setPermission(p, file, !b),"set permission failed p="+p);
+		assertTrue(
+				setPermission(p, file, !b),
+				"set permission failed p="+p);
 		boolean b2 = getPermission(p, file);
 		assertEquals(b2, !b,"permision did not change p="+p);
 		
 		// Set it back
-		assertTrue(setPermission(p, file, b),"reset permission failed p="+p);		
+		assertTrue(
+				setPermission(p, file, b),
+				"reset permission failed p="+p);		
 		assertEquals(getPermission(p, file), b,"permision did not change back to original p="+p);
 		
 		

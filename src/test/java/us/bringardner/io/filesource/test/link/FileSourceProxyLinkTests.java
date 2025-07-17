@@ -61,30 +61,30 @@ public class FileSourceProxyLinkTests {
 
 	@BeforeAll
 	public static void beforeAll() throws IOException  {
-		System.out.println("Enter beforeAll");
+		//System.out.println("Enter beforeAll");
 		localTestFileDirPath = "TestFiles";
 		localCacheDirPath = "target/ProxyLinkCache";
 		remoteTestFileDirPath = "target/ProxyLinkTests";		
-		
+
 		factory = new FileProxyFactory();
-		
-		System.out.println("Exit beforeAll");
+
+		//System.out.println("Exit beforeAll");
 	}
-	
+
 	@AfterAll
 	static void afterAll()  {
-		System.out.println("Enter afterAll");
+		//System.out.println("Enter afterAll");
 		if( factory != null ) {
 			try {
 				factory.disConnect();
 			} catch (Throwable e) {
 			}
 		}
-		System.out.println("Exit afterAll");
+		//System.out.println("Exit afterAll");
 	}
-	
+
 	public void createLocalCache() throws IOException {
-		System.out.println("Enter testCreateLocalCache");
+		//System.out.println("Enter testCreateLocalCache");
 		FileSource _localDir = FileSourceFactory.getDefaultFactory().createFileSource(localTestFileDirPath);
 		assertTrue("local test dir does not exist ="+_localDir,_localDir.isDirectory());
 
@@ -101,7 +101,7 @@ public class FileSourceProxyLinkTests {
 		if( remoteDir.exists()) {
 			deleteAll(remoteDir);			
 		}
-		
+
 		if( !remoteDir.exists()) {
 			assertTrue("Cannot create remote directory"+remoteDir,
 					remoteDir.mkdirs()
@@ -110,38 +110,41 @@ public class FileSourceProxyLinkTests {
 		//  Make another copy of the local test directory
 		copy(cacheDir,remoteDir);
 
-		System.out.println("Exit testCreateLocalCache");
-		
+		//System.out.println("Exit testCreateLocalCache");
+
 	}
 
 	@Test 
 	@Order(1)
 	public void testSymbolicLink() throws IOException {
-		System.out.println("Enter testSymbolicLink");
-		createLocalCache();
-		FileSource remoteDir = factory.createFileSource(remoteTestFileDirPath);
-		FileSource [] kids = remoteDir.listFiles();
-		for(FileSource existing : kids) {
-			String name = existing.getName();
-			String lname = "Symlink_"+name;
-			FileSource link0 =  remoteDir.getChild(lname);
-			FileSource link = factory.createSymbolicLink(link0,existing);
-			compare(lname, link, existing);
-			
-			FileSource link1 = existing.getLinkedTo();
-			assertNull(link1);
-			FileSource link2 = link.getLinkedTo();
-			assertNotNull(link2);
-			assertEquals(link2.getAbsolutePath(), existing.getAbsolutePath());
-			
+		// WIndows only admin can create links
+		if(! FileSourceFactory.isWindows()) {
+			//System.out.println("Enter testSymbolicLink");
+			createLocalCache();
+			FileSource remoteDir = factory.createFileSource(remoteTestFileDirPath);
+			FileSource [] kids = remoteDir.listFiles();
+			for(FileSource existing : kids) {
+				String name = existing.getName();
+				String lname = "Symlink_"+name;
+				FileSource link0 =  remoteDir.getChild(lname);
+				FileSource link = factory.createSymbolicLink(link0,existing);
+				compare(lname, link, existing);
+
+				FileSource link1 = existing.getLinkedTo();
+				assertNull(link1);
+				FileSource link2 = link.getLinkedTo();
+				assertNotNull(link2);
+				assertEquals(link2.getAbsolutePath(), existing.getAbsolutePath());
+
+			}
+			//System.out.println("Exit testSymbolicLink");
 		}
-		System.out.println("Exit testSymbolicLink");
 	}
-		
+
 	@Test 
 	@Order(2)
 	public void testHardLink() throws IOException {
-		System.out.println("Enter testHardLink");
+		//System.out.println("Enter testHardLink");
 		createLocalCache();
 		FileSource remoteDir = factory.createFileSource(remoteTestFileDirPath);
 		FileSource [] kids = remoteDir.listFiles();
@@ -150,16 +153,16 @@ public class FileSourceProxyLinkTests {
 			String lname = "Link_"+name;
 			FileSource link0 =  remoteDir.getChild(lname);
 			FileSource link = factory.createLink(link0,existing);
-			
+
 			compare(lname, link, existing);
-			
+
 			FileSource link1 = existing.getLinkedTo();
 			assertNull(link1);
 			FileSource link2 = link.getLinkedTo();
 			assertNull(link2);			
-			
+
 		}
-		System.out.println("Exit testHardLink");
+		//System.out.println("Exit testHardLink");
 	}
 
 }
