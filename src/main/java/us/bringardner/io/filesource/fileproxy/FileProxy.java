@@ -363,22 +363,25 @@ public class FileProxy implements FileSource {
 	}
 
 
-	private boolean setPosixPermision(boolean value, PosixFilePermission p) throws IOException {
-		boolean ret = false;
-		UserDefinedFileAttributeView view = Files.getFileAttributeView(target.toPath(), UserDefinedFileAttributeView.class);
-		ByteBuffer buf = ByteBuffer.allocate(1);
-		buf.put(value?(byte)1:(byte)2);
-		buf.rewind();
-		try {
-			int i2 = view.write(p.name(),buf);
-			if( i2 == 1) {
-				ret = true;	
-			}
-		} catch (IOException e) {
-		}
+	private boolean setPosixPermision(boolean b, PosixFilePermission p) throws IOException {
+		Set<PosixFilePermission> perms = getPosixPermissions();
 		
-		return ret;
+		if(b) {
+			if( !perms.contains(p)) {
+				perms.add(p);
+				Files.setPosixFilePermissions(target.toPath(), perms);
+			}
+		} else {
+			if( perms.contains(p)) {
+				perms.remove(p);
+				Files.setPosixFilePermissions(target.toPath(), perms);
+			}
+		}	
+		// no errors so I assume it worked
+		return true;
 	}
+	
+	
 
 	/* (non-Javadoc)
 	 * @see java.lang.Comparable#compareTo(java.lang.Object)
