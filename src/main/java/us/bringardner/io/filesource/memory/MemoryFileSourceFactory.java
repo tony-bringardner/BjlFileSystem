@@ -274,6 +274,9 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 	public FileSource createFileSource(String fullPath) throws IOException {
 		String expand = expandDots(fullPath);
 
+		if(fullPath.equals("/")) {
+			return roots[0];
+		}
 		MemoryFileSource ret = null;
 		String [] parts = expand.split(""+getSeperatorChar());
 		MemoryFileSource parent = roots[0];
