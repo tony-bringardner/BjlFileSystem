@@ -228,7 +228,6 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	/*
 	 * Create a FileSource identified by the URL given by 'url'
 	 */
-	@SuppressWarnings("deprecation")
 	public static FileSource getFileSource(String url) throws IOException {
 		return getFileSource(new URL(url));
 	}

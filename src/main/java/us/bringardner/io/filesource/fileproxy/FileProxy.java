@@ -38,7 +38,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -50,7 +49,6 @@ import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
-import java.nio.file.attribute.UserDefinedFileAttributeView;
 import java.nio.file.attribute.UserPrincipal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -694,7 +692,7 @@ public class FileProxy implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#toURL()
 	 */
-	@SuppressWarnings("deprecation")
+	
 	public URL toURL() throws MalformedURLException {
 		URL ret = null;
 

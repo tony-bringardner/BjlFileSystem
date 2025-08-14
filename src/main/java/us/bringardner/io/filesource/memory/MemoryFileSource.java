@@ -504,7 +504,6 @@ public class MemoryFileSource implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#toURL()
 	 */
-	@SuppressWarnings("deprecation")
 	public URL toURL() throws MalformedURLException {
 		URL ret = null;
 
