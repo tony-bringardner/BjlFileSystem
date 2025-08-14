@@ -54,15 +54,21 @@ public class FileSourceFileSystem extends FileSystem {
 
 	
 	private FileSourceFactory factory;
-	private FileSourceFileSystemProvider provider = FileSourceFileSystemProvider.singleton;
+	private transient FileSourceFileSystemProvider provider;
 
 	 FileSourceFileSystem(FileSourceFactory factory) {
-		this.factory = factory;
-		
+		this.factory = factory;		
 	}
 
 	@Override
 	public FileSystemProvider provider() {
+		if( provider == null ) {
+			synchronized (this) {
+				if( provider == null ){
+					provider = FileSourceFileSystemProvider.getSingleton();
+				}
+			}
+		}
 		return this.provider;
 	}
 

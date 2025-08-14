@@ -85,7 +85,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 	}
 
-	static FileSourceFileSystemProvider singleton = new FileSourceFileSystemProvider();
+	private static transient  FileSourceFileSystemProvider singleton;
 
 
 
@@ -815,6 +815,20 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 	public void setAttribute(Path path, String attribute, Object value, LinkOption... options) throws IOException {
 		// Not implemented
 		throw new RuntimeException("setAttribute Not implemented");
+	}
+
+
+
+	public static FileSourceFileSystemProvider getSingleton() {
+		if( singleton == null ) {
+			synchronized (FileSourceFileSystemProvider.class) {
+				if( singleton == null ) {
+					singleton = new FileSourceFileSystemProvider();
+				}
+			}
+		}
+		
+		return singleton;
 	}
 
 }
