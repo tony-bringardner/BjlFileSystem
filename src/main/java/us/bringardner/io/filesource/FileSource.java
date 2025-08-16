@@ -79,7 +79,7 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * This is only here for comparability with java.io.File.  
 	 * 
 	 * @return true if and only if the file system actually contains a file denoted by this abstract pathname 
-	 * 	and the application is allowed to write to the file; false otherwise.  
+	 * 	and the application is allowed to read the file; false otherwise.  
 	 * @throws IOException 
 	 * 
 	 */
