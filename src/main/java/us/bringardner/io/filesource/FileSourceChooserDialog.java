@@ -1211,8 +1211,10 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 	private void setOkEnabled() {
 		if(dialogType==OPEN_DIALOG) {
 			okButton.setEnabled(currentDirectory!= null && table.getSelectedRowCount()>0);
-		} else {
+		} else if(dialogType==SAVE_DIALOG) {
 			okButton.setEnabled(currentDirectory!= null && saveAsFileNameTextField.getText().length()>0);
+		} else {
+			okButton.setEnabled(currentDirectory!= null && table.getSelectedRowCount()>0);
 		}
 		nextButton.setEnabled(!nextStack.isEmpty());
 	}
