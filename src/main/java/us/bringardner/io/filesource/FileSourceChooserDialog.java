@@ -1483,9 +1483,9 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 
 			FileSource p = file.getParentFile();
 
-			if(currentDirectory == null ) {
+			if(currentDirectory != null ) {
 				setCurrentDirectory(p);
-			} else if (!p.getCanonicalPath().equals(currentDirectory.getCanonicalPath())) {
+			} else if( p != null) {
 				setCurrentDirectory(p);                
 			}
 
