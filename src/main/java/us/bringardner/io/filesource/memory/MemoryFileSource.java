@@ -319,12 +319,12 @@ public class MemoryFileSource implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#mkdir()
 	 */
-	public boolean mkdir() throws IOException {
+	public boolean mkdir()  {
 		if( isFile() ) {
 			return false;
 		}
 		if(parent!=null && !parent.exists()) {
-			throw new IOException(parent.toString()+" no such directory");
+			return false;
 		}
 		fileType = FileType.Directory;
 		canOwnerRead = canOwnerWrite = true;
