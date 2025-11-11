@@ -88,7 +88,7 @@ public abstract class FileSourceRandomAccessIoBufferTests {
 		int doTries = 40;
 		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
 			while(tries < doTries) {
-				long pos = r.nextLong(len);
+				long pos = r.nextInt((int)len);
 				int idx = ((int)pos) % testData.length;
 				int expect = testData[idx];
 				int i = buf.read(pos);
@@ -116,7 +116,7 @@ public abstract class FileSourceRandomAccessIoBufferTests {
 		int doTries = 40;
 		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
 			while(tries < doTries) {
-				long pos = r.nextLong(len);
+				long pos = r.nextInt((int)len);
 				int idx = ((int)pos) % data.length;
 				int expect = testData[idx];
 				buf.write(pos, (byte) expect);

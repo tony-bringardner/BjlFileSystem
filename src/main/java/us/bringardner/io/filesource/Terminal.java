@@ -21,7 +21,7 @@
  *	@author Tony Bringardner   
  *
  *
- * ~version~
+ * !version!
  */
 package us.bringardner.io.filesource;
 
@@ -329,8 +329,9 @@ public class Terminal extends BaseThread {
 				out.writeLine("\t"+f);
 			}
 			out.writeLine("There are "+connected.size()+" connected factories");
-			for(FileSourceFactory f : connected) {
-				out.writeLine("\t"+f.getTypeId()+" "+f.getTitle());
+			for(int idx=0,sz=connected.size(); idx < sz; idx++) {
+				FileSourceFactory f = connected.get(idx);
+				out.writeLine("\t"+idx+") "+f.getTypeId()+" "+f.getTitle());
 			}
 
 		}
@@ -658,9 +659,9 @@ public class Terminal extends BaseThread {
 			return "Connect (open) a FileSource factory and make it availible to the Terminal.\n"
 					+ "\tWhen a factory is connected it is added to a list of connected factories and, \n"
 					+ "\tby default is referenced by the index of the list.\n"
-					+ "\tthe notation [#~]path identied a file with an optional connect number. \n"
-					+ "\tExample: 1~/data/file.txt mean the file /data/file.txt from conneted factort #1\n"
-					+ "\tA path with out the [#~] is assumed to be connection 0."
+					+ "\tthe notation [#!]path identied a file with an optional connect number. \n"
+					+ "\tExample: 1!/data/file.txt mean the file /data/file.txt from conneted factort #1\n"
+					+ "\tA path with out the [#!] is assumed to be connection 0."
 					+ "\n\tUSAGE: connect factory_id [position] [as name] [from property_file_name]\n"
 					;
 		}
@@ -727,7 +728,7 @@ public class Terminal extends BaseThread {
 							}
 
 							if( tmp.connect(props)) {
-								int pos = -1;
+								int pos = 0;
 								if( args.length > 2) {
 									try {
 										pos = Integer.parseInt(args[2]);									
@@ -763,6 +764,7 @@ public class Terminal extends BaseThread {
 		}
 
 		public void proccess(String[] args) throws IOException {
+			/*
 			int val = 0;
 			if( args.length>1) {
 				try {
@@ -771,7 +773,8 @@ public class Terminal extends BaseThread {
 				}
 			}
 			out.writeLine("Exit Terminal");
-			System.exit(val);;
+			*/
+			stop();
 		}
 
 	}
@@ -848,7 +851,7 @@ public class Terminal extends BaseThread {
 		}
 
 		public String help() {
-			return "Change the current working directory. cd [#~]path";
+			return "Change the current working directory. cd [#!]path";
 		}
 
 		public void proccess1(String[] args) throws IOException {
@@ -873,14 +876,14 @@ public class Terminal extends BaseThread {
 					out.writeLine(val.path+" does not exists");
 				}
 			} else {
-				out.writeLine("USAGE: cd [#~] path");
+				out.writeLine("USAGE: cd [#!] path");
 			}
 
 		}
 
 		public void proccess(String[] args) throws IOException {
 			if( args.length == 1) {
-				out.writeLine("USAGE: cd [#~]path");
+				out.writeLine("USAGE: cd [#!]path");
 			} else {
 				for (int idx = 1; idx < args.length; idx++) {
 					ParsedFileValue val = parseOnly(args[idx]);
@@ -900,7 +903,7 @@ public class Terminal extends BaseThread {
 
 		public String help() {
 			return "Copy a file or direcctory\n\t"
-					+ "cp [-v] [#~]from_path [#~]to_path\n\t"
+					+ "cp [-v] [#!]from_path [#!]to_path\n\t"
 					+ "Where '#' represent the number of a connected factory.\n\t"
 					+ "and -v for verbose output ";
 		}
@@ -908,7 +911,7 @@ public class Terminal extends BaseThread {
 		public void proccess(String[] args) throws IOException {
 
 			if( args.length < 3) {
-				out.writeLine("USAGE: cp [-v] [#~]from_path [#~]to_path\nWhere '#' represent the number of a connected factory");
+				out.writeLine("USAGE: cp [-v] [#!]from_path [#!]to_path\nWhere '#' represent the number of a connected factory");
 
 			} else {
 				int startArg = 1;
@@ -934,7 +937,7 @@ public class Terminal extends BaseThread {
 		}
 
 		public String help() {
-			return "Search direcctory\n\tfind [-r] [#~]path [-depth #] [reg_exp] [-size=><=#-#\n\tWhere '#' represent the number of a connected factory."
+			return "Search direcctory\n\tfind [-r] [#!]path [-depth #] [reg_exp] [-size=><=#-#\n\tWhere '#' represent the number of a connected factory."
 					+ "\n\tuse -r to recursivly search the tree "
 
 					;
@@ -1032,7 +1035,7 @@ public class Terminal extends BaseThread {
 		}
 
 		public String help() {
-			return "Search direcctory\n\tfind [-r] [#~]path [reg_exp]\n\tWhere '#' represent the number of a connected factory."
+			return "Search direcctory\n\tfind [-r] [#!]path [reg_exp]\n\tWhere '#' represent the number of a connected factory."
 
 					+ "\n\tuse -r to recursivly search the tree "
 					;
@@ -1097,13 +1100,13 @@ public class Terminal extends BaseThread {
 
 		public String help() {
 
-			return "Delete a file or direcctory\n\trm -[r] [-v] [#~]path \n\tWhere '#' represent the number of a connected factory.\n\tuse -v for verbose output\n\tuse -r to deleted direcories recursively ";
+			return "Delete a file or direcctory\n\trm -[r] [-v] [#!]path \n\tWhere '#' represent the number of a connected factory.\n\tuse -v for verbose output\n\tuse -r to deleted direcories recursively ";
 		}
 
 		public void proccess(String[] args) throws IOException {
 
 			if( args.length < 2) {
-				out.writeLine("USAGE: rm -[r] [-v] [#~]path \n\tWhere '#' represent the number of a connected factory.\n\tuse -v for verbose output\n\tuse -r to deleted direcories recursively ");
+				out.writeLine("USAGE: rm -[r] [-v] [#!]path \n\tWhere '#' represent the number of a connected factory.\n\tuse -v for verbose output\n\tuse -r to deleted direcories recursively ");
 
 			} else {
 				int startArg = 1;
@@ -1190,7 +1193,7 @@ public class Terminal extends BaseThread {
 						arg = arg.trim();
 						if( !arg.isEmpty()) {
 							ParsedFileValue val = parseOnly(arg);
-							List<Object> ret = followPath(arg, connected.get(val.factory));
+							List<Object> ret = followPath(val.path, connected.get(val.factory));
 							if( ret != null && ret.size()>0) {						
 								Object obj2 =  ret.get(ret.size()-1);
 								list1(obj2 ,showHidden,showLong);
@@ -1382,7 +1385,7 @@ public class Terminal extends BaseThread {
 	public FileSource parseFile(String path) throws IOException {
 		FileSource ret = null;
 		FileSourceFactory f = connected.get(currentFactory);
-		if(path.length()>2 && path.charAt(1) == '~') {
+		if(path.length()>2 && path.charAt(1) == '!') {
 			String tmp = path.substring(0,1);
 			path = path.substring(2);
 			int pos = Integer.parseInt(tmp);
@@ -1397,7 +1400,7 @@ public class Terminal extends BaseThread {
 	public ParsedFileValue parseOnly(String path) throws IOException {
 		ParsedFileValue ret = new ParsedFileValue();
 
-		if(path.length()>1 && path.charAt(1) == '~') {
+		if(path.length()>1 && path.charAt(1) == '!') {
 			String tmp = path.substring(0,1);
 			ret.path = path.substring(2);
 			ret.factory = Integer.parseInt(tmp);			
@@ -1422,6 +1425,20 @@ public class Terminal extends BaseThread {
 	boolean headless = GraphicsEnvironment.isHeadless();
 	List<String> history = new ArrayList<String>();
 
+	public int useOrAdd(FileSourceFactory factory) {
+		int ret = -1;
+		for(int idx=0; idx < connected.size(); idx++ ) {
+			FileSourceFactory f = connected.get(idx);
+			if( f.getTypeId().equals(factory.getTypeId())) {
+				return idx;
+			}
+		}
+		connected.add(factory);
+		currentFactory = connected.size()-1;
+
+
+		return ret;
+	}
 
 	public ILineReader getIn() {
 		return in;
@@ -1445,25 +1462,21 @@ public class Terminal extends BaseThread {
 	public void run()  {
 		started = running = true;
 
+
+		String line = "";
 		while(running && !stopping ) {
 			try {
-				FileSource dir = connected.get(currentFactory).getCurrentDirectory();
+				FileSource dir = connected.get(currentFactory).getCurrentDirectory();		
+				String prompt = "> ";
 
-
-				String line = "";
-				while( line != null) {
-					String prompt = "";
-
-					if( dir != null) {
-						prompt = (connected.get(currentFactory).getTypeId()+" "+  dir.getName());
-					}
-					out.write("\n"+prompt+" > ");
-					if( (line = in.readLine()) !=null) {
-						process(line);
-						dir = connected.get(currentFactory).getCurrentDirectory();
-					}			
+				if( dir != null) {
+					prompt = (connected.get(currentFactory).getTypeId()+" "+  dir.getName());
 				}
-				out.writeLine("Exit Terminal");
+				out.write("\n"+prompt+" > ");
+				if( (line = in.readLine()) !=null) {
+					process(line);
+					dir = connected.get(currentFactory).getCurrentDirectory();
+				}			
 
 			} catch (Throwable e) {
 				try {

@@ -253,8 +253,9 @@ public class RecentFileMenu extends JMenu {
 
 	private List<ListEntry> readRecentList() throws Exception {
 		List<ListEntry> ret = new ArrayList<>();
+		prefs.clear();
 		String tmp = prefs.get(PREF_RECENT_LIST, null);
-		//prefs.clear();
+		
 		if( tmp != null && !tmp.isEmpty()) {
 			tmp = decrypt(tmp);
 			for(String line : tmp.split(""+NL)) {		
