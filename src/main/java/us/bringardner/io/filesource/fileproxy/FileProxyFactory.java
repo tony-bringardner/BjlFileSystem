@@ -92,10 +92,10 @@ public class FileProxyFactory extends FileSourceFactory {
 					
 					if (System.getProperty ("os.name").indexOf ("Windows") != -1) {
 						List<FileProxy> list = new ArrayList<FileProxy>();
-						for (char i = 'a'; i <= 'z'; ++i) {
+						for (char i = 'A'; i <= 'Z'; ++i) {
 							
 							File drive = new File(i+ ":\\");
-							if (drive.isDirectory() && drive.exists()) {
+							if (drive.exists() && drive.isDirectory() ) {
 								list.add(new FileProxy(drive,this));
 							}
 						}

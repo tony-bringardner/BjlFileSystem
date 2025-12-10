@@ -66,7 +66,7 @@ import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
 import us.bringardner.io.filesource.java.file.FileSourcePath;
 
-public class FileSourceProviderTests extends FileSourceAbstractTestClass {
+public class FileSourceProviderTests extends AbstractTestClass {
 	class Index {
 		int idx=0;
 	}

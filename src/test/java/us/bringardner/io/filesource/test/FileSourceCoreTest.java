@@ -29,14 +29,27 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
+import us.bringardner.io.filesource.memory.MemoryFileSourceFactory;
 
 
 
-public class FileSourceCoreTest  {
+public class FileSourceCoreTest  extends AbstractTestClass {
 
+
+	@BeforeAll
+	public static void setUpBeforeAll()  {
+		localTestFileDirPath = "TestFiles";
+		remoteTestFileDirPath = "target/MemoryTests";		
+		localCacheDirPath = "target/MemoryTestsCache";
+		factory = FileSourceFactory.getDefaultFactory();
+
+	}
+	
 	@Test
 	public void testExpandDots() throws IOException {
 
@@ -103,6 +116,19 @@ public class FileSourceCoreTest  {
 				System.out.println("expect=\""+expect+"\";");
 			}
 			//System.out.println(paths[idx]+","+expect+","+actual);
+		}
+	}
+	
+	@Test
+	public void testRoots01() throws IOException  {
+		FileSource [] roots = factory.listRoots();
+		for (int idx = 0; idx < roots.length; idx++) {
+			FileSource f = roots[idx];
+			System.out.println("root="+f);
+			FileSource [] kids = f.listFiles();
+			for(FileSource kid : kids) {
+				System.out.println("\t"+kid);
+			}
 		}
 	}
 

@@ -49,7 +49,7 @@ import us.bringardner.io.filesource.FileSourceFactory;
 
 
 @TestMethodOrder(OrderAnnotation.class)
-public abstract class FileSourceAbstractTestClass {
+public abstract class AbstractTestClass {
 
 	
 	public static enum Permissions {

@@ -32,9 +32,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static us.bringardner.io.filesource.test.FileSourceAbstractTestClass.compare;
-import static us.bringardner.io.filesource.test.FileSourceAbstractTestClass.copy;
-import static us.bringardner.io.filesource.test.FileSourceAbstractTestClass.deleteAll;
+import static us.bringardner.io.filesource.test.AbstractTestClass.compare;
+import static us.bringardner.io.filesource.test.AbstractTestClass.copy;
+import static us.bringardner.io.filesource.test.AbstractTestClass.deleteAll;
 
 import java.io.IOException;
 

@@ -676,7 +676,7 @@ public class FileProxy implements FileSource {
 
 
 	public String toString() {
-		return target.toString().replace('\\','/');
+		return target.toString();
 	}
 
 	/* Return a Factory taht can be used to create a factory of this type.

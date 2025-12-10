@@ -31,7 +31,7 @@ import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
 
 
 
-public class FileSourceFileProxyTests extends FileSourceAbstractTestClass {
+public class FileSourceFileProxyTests extends AbstractTestClass {
 
 
 
