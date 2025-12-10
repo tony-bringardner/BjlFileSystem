@@ -25,6 +25,9 @@
  */
 package us.bringardner.io.filesource.test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
@@ -38,7 +41,21 @@ import us.bringardner.io.filesource.FileSourceFactory;
 
 public class FileSourceCoreTest  extends AbstractTestClass {
 
-
+	public enum OperatingSystem {UnKnown,Windows,Mac,Linux};
+	
+	public static OperatingSystem getOs() {
+		OperatingSystem ret = OperatingSystem.UnKnown;
+		String os = System.getProperty("os.name").toLowerCase();
+		if( os.contains("win")) {
+			ret = OperatingSystem.Windows;
+		} else if (os.contains("mac")) {
+			ret = OperatingSystem.Mac;
+		} 	else if (os.contains("linux")) {
+			ret = OperatingSystem.Linux;
+		}
+		return ret;
+	}
+	
 	@BeforeAll
 	public static void setUpBeforeAll()  {
 		localTestFileDirPath = "TestFiles";
@@ -113,21 +130,19 @@ public class FileSourceCoreTest  extends AbstractTestClass {
 				System.out.println("actual=\""+actual+"\";");
 				System.out.println("expect=\""+expect+"\";");
 			}
-			//System.out.println(paths[idx]+","+expect+","+actual);
+		
 		}
 	}
 	
 	@Test
-	public void O() throws IOException  {
+	public void testListRoots() throws IOException  {
+		
 		FileSource [] roots = factory.listRoots();
-		for (int idx = 0; idx < roots.length; idx++) {
-			FileSource f = roots[idx];
-			System.out.println("root="+f);
-			FileSource [] kids = f.listFiles();
-			for(FileSource kid : kids) {
-				System.out.println("\t"+kid);
-			}
-		}
+		assertNotNull(roots);
+		assertEquals(1, roots.length);
+		String actual = roots[0].getName();
+		String expect = getOs()==OperatingSystem.Windows?"C:\\":"/";
+		assertEquals(expect, actual);
 	}
 
 }
