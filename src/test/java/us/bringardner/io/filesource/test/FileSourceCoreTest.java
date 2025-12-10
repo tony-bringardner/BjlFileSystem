@@ -34,8 +34,6 @@ import org.junit.jupiter.api.Test;
 
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
-import us.bringardner.io.filesource.memory.MemoryFileSourceFactory;
-
 
 
 public class FileSourceCoreTest  extends AbstractTestClass {
@@ -120,7 +118,7 @@ public class FileSourceCoreTest  extends AbstractTestClass {
 	}
 	
 	@Test
-	public void testRoots01() throws IOException  {
+	public void O() throws IOException  {
 		FileSource [] roots = factory.listRoots();
 		for (int idx = 0; idx < roots.length; idx++) {
 			FileSource f = roots[idx];
