@@ -693,6 +693,7 @@ public class FileProxy implements FileSource {
 	 * @see us.bringardner.io.filesource.FileSource#toURL()
 	 */
 	
+	@SuppressWarnings("deprecation")
 	public URL toURL() throws MalformedURLException {
 		URL ret = null;
 
