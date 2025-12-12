@@ -118,7 +118,7 @@ public class FileSourceCoreTest  extends AbstractTestClass {
 	}
 	
 	@Test
-	public void O() throws IOException  {
+	public void testListRoots() throws IOException  {
 		FileSource [] roots = factory.listRoots();
 		for (int idx = 0; idx < roots.length; idx++) {
 			FileSource f = roots[idx];
