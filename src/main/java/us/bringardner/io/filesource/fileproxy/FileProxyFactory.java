@@ -55,9 +55,9 @@ public class FileProxyFactory extends FileSourceFactory {
 	private static final long serialVersionUID = 1L;
 	public final String LOCAL_INDICATOR="~";
 	public static final String FACTORY_ID = "fileproxy";
-	private volatile static FileSource [] roots;
+	private volatile FileSource [] roots;
 	private volatile FileSource currentDirectory;
-	
+
 	/**
 	 * 
 	 */
@@ -85,32 +85,32 @@ public class FileProxyFactory extends FileSourceFactory {
 	 * @see us.bringardner.io.filesource.FileSourceFactory#listRoots()
 	 */
 	public FileSource[] listRoots() throws IOException {
-		
+
 		if(roots == null ) {
 			synchronized(FileSourceFactory.class) {
 				if(roots == null) {
-					
+
 					if (System.getProperty ("os.name").indexOf ("Windows") != -1) {
 						List<FileProxy> list = new ArrayList<FileProxy>();
 						for (char i = 'A'; i <= 'Z'; ++i) {
-							
+
 							File drive = new File(i+ ":\\");
 							if (drive.exists() && drive.isDirectory() ) {
 								list.add(new FileProxy(drive,this));
 							}
 						}
-						
+
 						roots = (FileSource[]) list.toArray(new FileSource[list.size()]);	
 					} else {
 						FileSource root = FileSourceFactory.getDefaultFactory().createFileSource( System.getProperty("file.separator"));
 						roots = new FileSource[] { root };
-						
+
 					}
 				}
 			}
 		}
-			
-	
+
+
 		return roots;
 	}
 
@@ -121,15 +121,15 @@ public class FileProxyFactory extends FileSourceFactory {
 		return false;
 	}
 
-     public Properties getConnectProperties() {
-    	//  No properties are required.
-        return new Properties();
-    }
+	public Properties getConnectProperties() {
+		//  No properties are required.
+		return new Properties();
+	}
 
-    public boolean isConnected() {
-        // Local FileSource is always connected.
-        return true;
-    }
+	public boolean isConnected() {
+		// Local FileSource is always connected.
+		return true;
+	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSourceFactory#getEditPropertiesComponent()
@@ -140,14 +140,14 @@ public class FileProxyFactory extends FileSourceFactory {
 		return null;
 	}
 
-	
+
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSourceFactory#setProperties(java.net.URL)
 	 */
 	@Override
 	public void setConnectionProperties(URL url) {
 		// Nothing to do	
-	
+
 	}
 
 	/* (non-Javadoc)
@@ -168,10 +168,39 @@ public class FileProxyFactory extends FileSourceFactory {
 
 	@Override
 	public FileSource createFileSource(String fullPath) throws IOException {
-		File file = new File(fullPath);
-		if( getCurrentDirectory() != null && !file.isAbsolute()) {
-			file = new File(((FileProxy) currentDirectory).target,fullPath);
+
+		boolean abs = fullPath.startsWith("/");
+		if( isWindows()) {
+			abs = fullPath.length()>1 && Character.isAlphabetic(fullPath.charAt(0)) && fullPath.charAt(1) == ':';
 		}
+		
+		File file = new File(fullPath);
+		String realPath = fullPath;
+		
+		if( !abs) {
+			FileSource cwd = getCurrentDirectory();			
+			if( cwd != null ) {
+				file = new File(((FileProxy) cwd).target,fullPath);
+				realPath = file.getAbsolutePath();
+			}
+		}
+		
+		
+		File root=null;
+		
+		for(FileSource tmp: listRoots()) {
+			String rootPath =tmp.getAbsolutePath();
+			if( realPath.startsWith(rootPath)) {
+				root = ((FileProxy) tmp).target;
+				realPath = realPath.substring(rootPath.length());
+				break;
+			}
+		}
+
+		if(root !=null &&  !realPath.isEmpty()) {
+			file = new File(root,realPath);
+		}
+
 		return new FileProxy(file,this);
 	}
 
@@ -198,7 +227,7 @@ public class FileProxyFactory extends FileSourceFactory {
 				if( currentDirectory == null ) {
 					File tmp = new File(".");
 					currentDirectory = new FileProxy(tmp.getCanonicalFile(),this);
-										
+
 				}
 			}
 		}
@@ -228,7 +257,7 @@ public class FileProxyFactory extends FileSourceFactory {
 	@Override
 	protected void disConnectImpl() {
 		// ignore
-		
+
 	}
 
 
@@ -240,11 +269,11 @@ public class FileProxyFactory extends FileSourceFactory {
 			if (existing instanceof FileProxy) {
 				FileProxy tfp = (FileProxy) existing;
 				Path path = Files.createSymbolicLink(sfp.target.toPath(), tfp.target.toPath());
-				
+
 				ret = new FileProxy(path.toFile(), this); 
 			}
 		}
-		
+
 		return ret;
 	}
 

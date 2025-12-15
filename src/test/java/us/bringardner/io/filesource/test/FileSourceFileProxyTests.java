@@ -25,6 +25,8 @@
  */
 package us.bringardner.io.filesource.test;
 
+import java.io.IOException;
+
 import org.junit.jupiter.api.BeforeAll;
 
 import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
@@ -36,13 +38,14 @@ public class FileSourceFileProxyTests extends AbstractTestClass {
 
 
 	@BeforeAll
-	static void setUpBeforeClass() {
+	static void setUpBeforeClass() throws IOException {
+		
+
 		localTestFileDirPath = "TestFiles";
 		remoteTestFileDirPath = "target/FileProxyTests";		
 		localCacheDirPath = "target/FileProxyTestsCache";
 		factory = new FileProxyFactory();
 
 	}
-
 
 }

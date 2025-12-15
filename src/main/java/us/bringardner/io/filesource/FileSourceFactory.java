@@ -52,6 +52,7 @@ import java.util.ServiceLoader;
 
 import us.bringardner.core.BaseObject;
 import us.bringardner.core.util.LogHelper;
+import us.bringardner.io.filesource.fileproxy.FileProxy;
 import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
 
 /**
@@ -337,6 +338,45 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 
 	public abstract FileSource createFileSource(String fullPath) throws IOException;
 
+	public FileSource createFileSource1(String fullPath) throws IOException {
+		FileSource ret = null;
+		FileSource cwd = getCurrentDirectory();
+		boolean abs = fullPath.startsWith("/");
+		if( isWindows()) {
+			abs = fullPath.length()>1 && Character.isAlphabetic(fullPath.charAt(0)) && fullPath.charAt(1) == ':';
+		}
+		
+		
+		String realPath = fullPath;
+		if( cwd != null && !abs) {
+			char sep = getSeperatorChar();
+			String tmp = cwd.getAbsolutePath();
+			if( tmp.endsWith(""+sep)) {
+				realPath = tmp+fullPath;
+			} else {
+				realPath = tmp+sep+fullPath;
+			}
+		}
+		
+		FileSource root=null;
+		
+		for(FileSource tmp: listRoots()) {
+			String rootPath =tmp.getAbsolutePath();
+			if( realPath.startsWith(rootPath)) {
+				ret = root = tmp;
+				realPath = realPath.substring(rootPath.length());
+				break;
+			}
+		}
+		
+		if(root !=null &&  !realPath.isEmpty()) {
+			ret = root.getChild(realPath);
+		}
+	
+		return ret;
+		
+	}
+	
 	/*
 	 * Return the type id (File / JbdcFile / just like URL prototype)
 	 */

@@ -34,9 +34,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -83,6 +88,80 @@ public abstract class AbstractTestClass {
 	public static boolean verbose = false;
 
 
+	public static void tearDownWindowsDrive(String drive) throws IOException {
+		File driveFile = new File(drive+":");
+		if( driveFile.exists()) {
+			List<String> cmd = Arrays.asList( "subst",drive+":","/D");
+			executeExternalCommand(cmd);
+		}
+	}
+
+	public static void executeExternalCommand(List<String> cmd) throws IOException {
+		File cmdFile = null;
+
+		for(String path : (""+System.getenv("PATH")).split("[;]")) {
+			for(String ext : (""+System.getenv("PATHEXT")).split("[;]")) {
+				File file = new File(path+"\\cmd"+ext);
+				if( file.exists()) {
+					cmdFile = file;
+					break;
+				}
+			}
+			if( cmdFile !=null) {
+				break;
+			}
+		}
+
+		List<String> cmd2 =new ArrayList<>();
+		cmd2.add( cmdFile.getCanonicalPath());
+		cmd2.add( "/r");
+		cmd2.addAll(cmd);
+
+		ProcessBuilder builder = new ProcessBuilder(cmd2);
+		Process p = builder.start();
+		int time = 0;
+		while(p.isAlive()) {
+			try {
+				p.waitFor(1000, TimeUnit.MILLISECONDS);
+				if( ++time > 3) { 
+					System.out.println("ExternalProcess Waiting for "+(time*1000));
+				}
+			} catch (InterruptedException e) {
+			}
+		}
+		int exitCode = p.exitValue();
+		if( exitCode!=0) {
+			String err = new String(p.getErrorStream().readAllBytes());
+			String out = new String(p.getInputStream().readAllBytes());
+			throw new IOException(err+" = "+out);
+		}
+
+	}
+
+	public static void setupWindowsDrive(String drive) throws IOException {
+		File driveFile = new File(drive+":");
+		if( !driveFile.exists()) {
+			File sourceDir = new File("TestFiles").getCanonicalFile();
+			if( !sourceDir.exists()) {
+				throw new IOException("Missing souce dir  "+sourceDir);
+			}
+
+			File targetDir = new File("target\\"+drive+"DriveDir").getCanonicalFile();
+			String tmp = targetDir.getAbsolutePath();
+			if( !targetDir.exists()) {
+				if( !targetDir.mkdirs()) {
+					throw new IOException("Can't create target dir "+targetDir);
+				}
+			}
+			FileSource from = FileSourceFactory.getDefaultFactory().createFileSource(sourceDir.getAbsolutePath());
+			FileSource to = FileSourceFactory.getDefaultFactory().createFileSource(tmp);
+			copy(from, to);
+
+
+			List<String> cmd = Arrays.asList( "subst",drive+":",tmp);
+			executeExternalCommand(cmd);
+		}
+	}
 
 	@AfterAll
 	static void tearDownAfterAll()  {

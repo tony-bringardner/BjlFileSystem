@@ -25,29 +25,51 @@
  */
 package us.bringardner.io.filesource.test;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
+import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
 
 
 public class FileSourceCoreTest  extends AbstractTestClass {
 
 
 	@BeforeAll
-	public static void setUpBeforeAll()  {
+	public static void setUpBeforeAll() throws IOException {
+		if( FileSourceFactory.isWindows()) {
+			setupWindowsDrive("L");
+			setupWindowsDrive("M");
+			setupWindowsDrive("N");
+
+		}
+
 		localTestFileDirPath = "TestFiles";
 		remoteTestFileDirPath = "target/MemoryTests";		
 		localCacheDirPath = "target/MemoryTestsCache";
 		factory = FileSourceFactory.getDefaultFactory();
 
 	}
-	
+
+	@AfterAll
+	public static void tearDown() throws IOException {
+		if( FileSourceFactory.isWindows()) {
+			tearDownWindowsDrive("L");
+			tearDownWindowsDrive("M");
+			tearDownWindowsDrive("N");
+		}
+	}
+
 	@Test
 	public void testExpandDots() throws IOException {
 
@@ -116,18 +138,98 @@ public class FileSourceCoreTest  extends AbstractTestClass {
 			//System.out.println(paths[idx]+","+expect+","+actual);
 		}
 	}
-	
+
 	@Test
 	public void testListRoots() throws IOException  {
+		factory = new FileProxyFactory();
 		FileSource [] roots = factory.listRoots();
-		for (int idx = 0; idx < roots.length; idx++) {
-			FileSource f = roots[idx];
-			System.out.println("root="+f);
-			FileSource [] kids = f.listFiles();
-			for(FileSource kid : kids) {
-				System.out.println("\t"+kid);
+		assertNotNull(roots);
+		assertTrue(roots.length>0);
+		
+		if( FileSourceFactory.isWindows()) {
+			String drives [] = {"C:\\","L:\\","M:\\","N:\\"};
+			//  Minimally is C:,L:,M: and N:
+			assertTrue(roots.length>3);
+			for(String name : drives) {
+				FileSource dir = factory.createFileSource(name);
+				String path = dir.getAbsolutePath();
+				assertEquals(name, path);
 			}
+			
+			for(String name1 : drives) {
+				String name = name1+"AbcFile.txt";
+				FileSource dir = factory.createFileSource(name);
+				String path = dir.getAbsolutePath();
+				assertEquals(name, path);
+			}
+			
+			FileSource cwd = factory.createFileSource("L:\\");
+			factory.setCurrentDirectory(cwd);
+			String name = "AbcFile.txt";
+			FileSource file = factory.createFileSource(name);
+			String path = file.getAbsolutePath();
+			String expect ="L:\\AbcFile.txt";
+			assertEquals(expect, path);
+			
+			name = "O:\\AbcFile.txt";
+			file = factory.createFileSource(name);
+			path = file.getAbsolutePath();
+			expect ="O:\\AbcFile.txt";
+			assertEquals(expect, path);
+			
+			name = "/AbcFile.txt";
+			file = factory.createFileSource(name);
+			path = file.getAbsolutePath();
+			expect ="L:\\AbcFile.txt";
+			assertEquals(expect, path);
+			
+			
 		}
 	}
 
+	@Test
+	public void testListRoots2() throws IOException  {
+		factory = new FileProxyFactory();
+		FileSource [] roots = factory.listRoots();
+		assertNotNull(roots);
+		assertTrue(roots.length>0);
+		
+		if( FileSourceFactory.isWindows()) {
+			String drives [] = {"C:\\","L:\\","M:\\","N:\\"};
+			//  Minimally is C:,L:,M: and N:
+			assertTrue(roots.length>3);
+			for(String name : drives) {
+				FileSource dir = factory.createFileSource1(name);
+				String path = dir.getAbsolutePath();
+				assertEquals(name, path);
+			}
+			
+			for(String name1 : drives) {
+				String name = name1+"AbcFile.txt";
+				FileSource dir = factory.createFileSource1(name);
+				String path = dir.getAbsolutePath();
+				assertEquals(name, path);
+			}
+			
+			FileSource cwd = factory.createFileSource1("L:\\");
+			factory.setCurrentDirectory(cwd);
+			String name = "AbcFile.txt";
+			FileSource file = factory.createFileSource1(name);
+			String path = file.getAbsolutePath();
+			String expect ="L:\\AbcFile.txt";
+			assertEquals(expect, path);
+			
+			name = "O:\\AbcFile.txt";
+			file = factory.createFileSource1(name);
+			assertEquals(null, file);
+			
+			name = "/AbcFile.txt";
+			file = factory.createFileSource1(name);
+			path = file.getAbsolutePath();
+			expect ="L:\\AbcFile.txt";
+			assertEquals(expect, path);
+			
+			
+		}
+	}
 }
