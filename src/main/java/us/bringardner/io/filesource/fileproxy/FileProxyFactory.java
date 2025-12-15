@@ -102,9 +102,8 @@ public class FileProxyFactory extends FileSourceFactory {
 
 						roots = (FileSource[]) list.toArray(new FileSource[list.size()]);	
 					} else {
-						FileSource root = FileSourceFactory.getDefaultFactory().createFileSource( System.getProperty("file.separator"));
-						roots = new FileSource[] { root };
-
+						File root = new File("/");
+						roots = new FileSource[] { new FileProxy(root, this) };
 					}
 				}
 			}
