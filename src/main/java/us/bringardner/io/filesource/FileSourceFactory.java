@@ -34,6 +34,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
+import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -117,33 +118,60 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	}
 
 
+	/**
+	 * A connected factory, addressable by id (the sessionId URL parameter).
+	 * 
+	 * The factory is held weakly: a session lives as long as something
+	 * (typically the FileSource objects it created) still uses the factory,
+	 * or until the factory is disconnected. Previously every connect() added
+	 * an entry that was never removed, so e.g. each FileSourceFactory.getFileSource(URL)
+	 * call leaked one.
+	 */
 	private static class FactorySession {
-		int id = getNextId();
-		String key;
-		FileSourceFactory factory;
-		int instanceCount = 0;
+		final int id;
+		final String key;
+		final WeakReference<FileSourceFactory> factory;
 
-		public FactorySession(FileSourceFactory factory) {
-			this.factory = factory;
+		FactorySession(int id, FileSourceFactory factory) {
+			this.id = id;
+			this.factory = new WeakReference<>(factory);
 			StringBuilder buf = new StringBuilder(factory.getTypeId()+":");
 			Properties p = factory.getConnectProperties();
 			for(String name : p.stringPropertyNames()) {
 				if(! "password".equalsIgnoreCase(name)) {
-					buf.append(name+"="+p.getProperty(name));
+					buf.append(name+"="+p.getProperty(name)+";");
 				}
 			}
 			key = buf.toString();
 		}
 
+		FileSourceFactory get() {
+			return factory.get();
+		}
 	}
 
-	private static Map<Integer,FactorySession> sessions = new HashMap<>();
-	private static Map<String,FactorySession> sessionsKeyMap = new HashMap<>();
+	/** All access is synchronized on this map. */
+	private static final Map<Integer,FactorySession> sessions = new HashMap<>();
+
+	/** Drop sessions whose factory has been garbage collected. Caller holds the lock. */
+	private static void purgeCollectedSessions() {
+		sessions.values().removeIf(s -> s.get() == null);
+	}
+
+	/**
+	 * @return the number of registered (connected, still referenced) factory sessions.
+	 */
+	public static int getActiveSessionCount() {
+		synchronized (sessions) {
+			purgeCollectedSessions();
+			return sessions.size();
+		}
+	}
 
 	private volatile static FileSourceFactory defaultFactory;
 	private volatile static Map<String, String> types;
 	private static LogHelper logger = new LogHelper(FileSourceFactory.class);
-	private int sessionId=-1;
+	private volatile int sessionId=-1;
 
 	private static ServiceLoader<FileSourceFactory> factoryLoader= ServiceLoader.load(FileSourceFactory.class);
 
@@ -224,16 +252,21 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 		if( tmp != null ) {
 			try {
 				int sessionid = Integer.parseInt(tmp);
-				FactorySession session = sessions.get(sessionid);
-				if( session != null ) {
-					return session.factory;
-				} else {
-					if( sessionid < 0 ) {
-						FactorySession s = new FactorySession(fileProxyFactory);
-						s.id = sessionid;
-						sessions.put(sessionid, s);
-						return s.factory;
+				FileSourceFactory found = null;
+				synchronized (sessions) {
+					FactorySession session = sessions.get(sessionid);
+					if( session != null ) {
+						found = session.get();
+						if( found == null ) {
+							sessions.remove(sessionid);
+						}
 					}
+				}
+				if( found != null ) {
+					return found;
+				} else if( sessionid < 0 ) {
+					// Negative ids have always meant the shared local factory.
+					return fileProxyFactory;
 				}
 			} catch (Exception e) {
 			}
@@ -437,18 +470,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 		if( !ret || getTypeId().equals(FileProxyFactory.FACTORY_ID)) {
 			ret = connectImpl();
 			if( ret ) {
-				//  this is a newly connected session so cache it
-				FactorySession s = new FactorySession(this);
-				sessions.put(s.id, s);
-				sessionId = s.id;
-				FactorySession session = sessionsKeyMap.get(s.key);
-				if( session != null) {
-					session.instanceCount++;
-					logger.getLogger().warn("Factory session alread exists for "+s.key+" sessions="+session.instanceCount);
-				} else {
-					s.instanceCount=1;
-					sessionsKeyMap.put(s.key, s);
-				}
+				registerSession();
 			}
 		}
 		return ret;
@@ -474,7 +496,47 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	 * @throws IOException 
 	 */
 	public  void disConnect() throws IOException {
-		disConnectImpl();
+		try {
+			disConnectImpl();
+		} finally {
+			synchronized (sessions) {
+				if( sessionId >= 0 ) {
+					FactorySession s = sessions.get(sessionId);
+					if( s != null && s.get() == this ) {
+						sessions.remove(sessionId);
+					}
+				}
+				sessionId = -1;
+			}
+		}
+	}
+
+	/**
+	 * Register this (connected) factory so URLs carrying its sessionId
+	 * resolve back to it. Reconnecting the same factory reuses its session.
+	 */
+	private void registerSession() {
+		synchronized (sessions) {
+			purgeCollectedSessions();
+			if( sessionId >= 0 ) {
+				FactorySession mine = sessions.get(sessionId);
+				if( mine != null && mine.get() == this ) {
+					return;   // already registered
+				}
+			}
+			FactorySession s = new FactorySession(getNextId(), this);
+			if( !(this instanceof FileProxyFactory) ) {
+				// Local file access has no real connection, so only warn for others
+				for(FactorySession other : sessions.values()) {
+					if( other.key.equals(s.key)) {
+						logger.getLogger().warn("Factory session already exists for "+s.key);
+						break;
+					}
+				}
+			}
+			sessions.put(s.id, s);
+			sessionId = s.id;
+		}
 	}
 
 	protected abstract void disConnectImpl() throws IOException;
