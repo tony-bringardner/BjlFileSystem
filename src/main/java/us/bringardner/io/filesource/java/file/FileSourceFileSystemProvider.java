@@ -26,6 +26,15 @@
 package us.bringardner.io.filesource.java.file;
 
 import java.io.IOException;
+import java.util.NoSuchElementException;
+import java.util.List;
+import java.util.Collections;
+import java.util.Arrays;
+import java.nio.file.NotDirectoryException;
+import java.nio.file.FileSystemException;
+import java.nio.file.DirectoryIteratorException;
+import java.nio.file.AccessDeniedException;
+import java.io.UncheckedIOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
@@ -92,70 +101,67 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 
 
-	private class FileSourcePosixFileAttributes implements PosixFileAttributes,BasicFileAttributes {
+	/**
+	 * Basic attributes, read once when created (as BasicFileAttributes are
+	 * meant to be). This used to be a live view: every accessor went back to
+	 * the file and returned null/0/false on an error.
+	 */
+	private static class FileSourceBasicFileAttributes implements BasicFileAttributes {
+		protected final FileSource file;
+		private final FileTime lastModifiedTime;
+		private final FileTime lastAccessTime;
+		private final FileTime creationTime;
+		private final boolean regularFile;
+		private final boolean directory;
+		private final boolean symbolicLink;
+		private final long size;
 
-		private FileSource file;
-
-		FileSourcePosixFileAttributes(FileSource file) {
+		/**
+		 * @param symbolicLink true to describe a link itself (NOFOLLOW_LINKS on a link)
+		 * @throws NoSuchFileException if the file doesn't exist (and isn't a link)
+		 */
+		FileSourceBasicFileAttributes(FileSource file, boolean symbolicLink) throws IOException {
 			this.file = file;
+			this.symbolicLink = symbolicLink;
+			if( !symbolicLink && !file.exists()) {
+				throw new NoSuchFileException(file.getAbsolutePath());
+			}
+			lastModifiedTime = FileTime.fromMillis(file.lastModified());
+			lastAccessTime = FileTime.fromMillis(file.lastAccessTime());
+			creationTime = FileTime.fromMillis(file.creationTime());
+			regularFile = !symbolicLink && file.isFile();
+			directory = !symbolicLink && file.isDirectory();
+			size = file.length();
 		}
 
 		@Override
 		public FileTime lastModifiedTime() {
-			try {
-				return FileTime.fromMillis(file.lastModified());
-			} catch (IOException e) {
-			}
-			return null;
+			return lastModifiedTime;
 		}
 
 		@Override
 		public FileTime lastAccessTime() {
-			try {
-				return FileTime.fromMillis(file.lastAccessTime());
-			} catch (IOException e) {
-			}
-			return null;
-
+			return lastAccessTime;
 		}
 
 		@Override
 		public FileTime creationTime() {
-			try {
-				return FileTime.fromMillis(file.getCreateDate());
-			} catch (IOException e) {
-			}
-			return null;
-
+			return creationTime;
 		}
 
 		@Override
 		public boolean isRegularFile() {
-			try {
-				return file.isFile() && file.getLinkedTo()==null;
-			} catch (IOException e) {
-			}
-			return false;
+			return regularFile;
 		}
 
 		@Override
 		public boolean isDirectory() {
-			try {
-				return file.isDirectory();
-			} catch (IOException e) {
-
-			}
-			return false;
+			return directory;
 		}
 
 		@Override
 		public boolean isSymbolicLink() {
-			boolean ret = false;
-			try {
-				ret = file.getLinkedTo()  != null;
-			} catch (IOException e) {
-			}
-			return ret;
+			return symbolicLink;
 		}
 
 		@Override
@@ -165,12 +171,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 		@Override
 		public long size() {
-			long ret = 0;
-			try {
-				ret = file.length();
-			} catch (IOException e) {
-			}
-			return ret;			
+			return size;
 		}
 
 		@Override
@@ -182,73 +183,73 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 			}
 			return  ret;
 		}
+	}
+
+	/** Basic plus POSIX attributes (owner, group, permissions), also read once. */
+	private static class FileSourcePosixFileAttributes extends FileSourceBasicFileAttributes implements PosixFileAttributes {
+		private final UserPrincipal owner;
+		private final GroupPrincipal group;
+		private final Set<PosixFilePermission> permissions;
+
+		FileSourcePosixFileAttributes(FileSource file, boolean symbolicLink) throws IOException {
+			super(file, symbolicLink);
+			owner = file.getOwner();
+			group = file.getGroup();
+			Set<PosixFilePermission> perms = EnumSet.noneOf(PosixFilePermission.class);
+			if( file.canOwnerRead()) {
+				perms.add(PosixFilePermission.OWNER_READ);
+			}
+			if( file.canOwnerWrite()) {
+				perms.add(PosixFilePermission.OWNER_WRITE);
+			}
+			if( file.canOwnerExecute()) {
+				perms.add(PosixFilePermission.OWNER_EXECUTE);
+			}
+			if( file.canGroupRead()) {
+				perms.add(PosixFilePermission.GROUP_READ);
+			}
+			if( file.canGroupWrite()) {
+				perms.add(PosixFilePermission.GROUP_WRITE);
+			}
+			if( file.canGroupExecute()) {
+				perms.add(PosixFilePermission.GROUP_EXECUTE);
+			}
+			if( file.canOtherRead()) {
+				perms.add(PosixFilePermission.OTHERS_READ);
+			}
+			if( file.canOtherWrite()) {
+				perms.add(PosixFilePermission.OTHERS_WRITE);
+			}
+			if( file.canOtherExecute()) {
+				perms.add(PosixFilePermission.OTHERS_EXECUTE);
+			}
+			permissions = Collections.unmodifiableSet(perms);
+		}
 
 		@Override
 		public UserPrincipal owner() {
-			UserPrincipal ret = null;
-			try {
-				ret = file.getOwner();
-			} catch (IOException e) {
-			}
-			return ret;
+			return owner;
 		}
 
 		@Override
 		public GroupPrincipal group() {
-			GroupPrincipal ret = null;
-			try {
-				ret = file.getGroup();
-			} catch (IOException e) {
-			}
-			return ret;
+			return group;
 		}
 
 		@Override
 		public Set<PosixFilePermission> permissions() {
-			Set<PosixFilePermission> ret = EnumSet.noneOf(PosixFilePermission.class);
-
-			try {
-				if( file.canOwnerRead()) {
-					ret.add(PosixFilePermission.OWNER_READ);
-				}
-				if( file.canOwnerWrite()) {
-					ret.add(PosixFilePermission.OWNER_WRITE);
-				}
-				if( file.canOwnerExecute()) {
-					ret.add(PosixFilePermission.OWNER_EXECUTE);
-				}
-				if( file.canGroupRead()) {
-					ret.add(PosixFilePermission.GROUP_READ);
-				}
-				if( file.canGroupWrite()) {
-					ret.add(PosixFilePermission.GROUP_WRITE);
-				}
-				if( file.canGroupExecute()) {
-					ret.add(PosixFilePermission.GROUP_EXECUTE);
-				}
-				if( file.canOtherRead()) {
-					ret.add(PosixFilePermission.OTHERS_READ);
-				}
-				if( file.canOtherWrite()) {
-					ret.add(PosixFilePermission.OTHERS_WRITE);
-				}
-				if( file.canOtherExecute()) {
-					ret.add(PosixFilePermission.OTHERS_EXECUTE);
-				}
-
-			} catch (IOException e) {
-			}
-			return ret;
+			return EnumSet.copyOf(permissions.isEmpty() ? EnumSet.noneOf(PosixFilePermission.class) : permissions);
 		}
-
 	}
 
 	//PosixFileAttributeView extends BasicFileAttributeView, FileOwnerAttributeView
 	private class FileSourcePosixFileAttributeView implements PosixFileAttributeView,BasicFileAttributeView {
 		FileSource file ;
+		boolean symbolicLink;
 
-		FileSourcePosixFileAttributeView(FileSource file) {
+		FileSourcePosixFileAttributeView(FileSource file, boolean symbolicLink) {
 			this.file = file;
+			this.symbolicLink = symbolicLink;
 		}
 
 		@Override
@@ -283,8 +284,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 		@Override
 		public PosixFileAttributes readAttributes() throws IOException {
-
-			return new FileSourcePosixFileAttributes(file);
+			return new FileSourcePosixFileAttributes(file, symbolicLink);
 		}
 
 		@Override
@@ -335,69 +335,149 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		}		
 	}
 
+	/** Parsed OpenOptions. */
+	private static final class Opts {
+		boolean read, write, append, create, createNew, truncate, deleteOnClose;
+
+		Opts(Iterable<? extends OpenOption> options) {
+			for(OpenOption op : options) {
+				if( op == StandardOpenOption.READ ) {
+					read = true;
+				} else if( op == StandardOpenOption.WRITE ) {
+					write = true;
+				} else if( op == StandardOpenOption.APPEND ) {
+					append = write = true;
+				} else if( op == StandardOpenOption.CREATE ) {
+					create = true;
+				} else if( op == StandardOpenOption.CREATE_NEW ) {
+					createNew = true;
+				} else if( op == StandardOpenOption.TRUNCATE_EXISTING ) {
+					truncate = true;
+				} else if( op == StandardOpenOption.DELETE_ON_CLOSE ) {
+					deleteOnClose = true;
+				} else if( op == StandardOpenOption.SPARSE || op == LinkOption.NOFOLLOW_LINKS ) {
+					// hints we can ignore
+				} else if( op == null ) {
+					throw new NullPointerException("null OpenOption");
+				} else {
+					throw new UnsupportedOperationException("Unsupported open option="+op);
+				}
+			}
+			if( !write ) {
+				read = true;
+			}
+			if( append && (read && !write || truncate) ) {
+				throw new IllegalArgumentException("APPEND can't be combined with READ or TRUNCATE_EXISTING");
+			}
+		}
+	}
+
+	private static FileSource fileOf(Path path) {
+		return ((FileSourcePath)path).getFileSource();
+	}
+
+	/** Existence checks for opening 'file' for writing, per the OpenOption contract. */
+	private static void checkWritable(FileSource file, Path path, Opts o) throws IOException {
+		boolean exists = file.exists();
+		if( o.createNew && exists ) {
+			throw new FileAlreadyExistsException(path.toString());
+		}
+		if( !exists && !o.create && !o.createNew ) {
+			throw new NoSuchFileException(path.toString());
+		}
+		if( exists && file.isDirectory() ) {
+			throw new FileSystemException(path.toString(), null, "Is a directory");
+		}
+	}
+
+	private static void checkReadable(FileSource file, Path path) throws IOException {
+		if( !file.exists() ) {
+			throw new NoSuchFileException(path.toString());
+		}
+		if( file.isDirectory() ) {
+			throw new FileSystemException(path.toString(), null, "Is a directory");
+		}
+	}
+
+	/**
+	 * Supports the standard options. (This used to reject CREATE and
+	 * TRUNCATE_EXISTING -- the defaults Files.newOutputStream/newBufferedWriter
+	 * pass when given explicit options -- and accepted CREATE_NEW without
+	 * checking that the file didn't exist.)
+	 */
 	@Override
 	public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
 		validate(path);
-		boolean append = false;
-		if( options != null ) {
-			for(OpenOption op : options) {
-				if (op instanceof StandardOpenOption) {
-					StandardOpenOption op1 = (StandardOpenOption) op;
-					switch (op1) {
-					case WRITE: break;  
-					case APPEND:append = true; break;
-					case CREATE_NEW: break;
-					case CREATE:
-
-					case DELETE_ON_CLOSE:
-					case DSYNC:					
-					case SPARSE:
-					case SYNC:
-					case TRUNCATE_EXISTING:
-					case READ:						
-					default:
-						throw new IOException("Unsupported open option="+op);						
-					}
-				}
-			}
+		List<OpenOption> list = options == null || options.length == 0
+				? Arrays.asList(StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
+				: Arrays.asList(options);
+		if( list.contains(StandardOpenOption.READ)) {
+			throw new IllegalArgumentException("READ not allowed");
 		}
+		Opts o = new Opts(list);
+		o.write = true;
+		FileSource file = fileOf(path);
+		checkWritable(file, path, o);
 
-		return ((FileSourcePath)path).getFileSource().getOutputStream(append);
+		OutputStream ret;
+		if( o.append ) {
+			ret = file.getOutputStream(true);
+		} else if( o.truncate || !file.exists() ) {
+			ret = file.getOutputStream();
+		} else {
+			// WRITE without TRUNCATE_EXISTING: overwrite from the start, keep the rest
+			ret = FileSourceChannels.overwritingStream(file.getRandomAccessStream("rw"));
+		}
+		return o.deleteOnClose ? FileSourceChannels.deleteOnClose(ret, file) : ret;
 	}
 
 	@Override
 	public InputStream newInputStream(Path path, OpenOption... options) throws IOException {
 		validate(path);
-
 		if( options != null ) {
 			for(OpenOption op : options) {
-				if (op instanceof StandardOpenOption) {
-					StandardOpenOption op1 = (StandardOpenOption) op;
-					switch (op1) {
-					case READ: break;  //  this is the only one supported
-					case APPEND:
-					case CREATE:
-					case CREATE_NEW:
-					case DELETE_ON_CLOSE:
-					case DSYNC:					
-					case SPARSE:
-					case SYNC:
-					case TRUNCATE_EXISTING:
-					case WRITE:						
-					default:
-						throw new IOException("Unsupported open option="+op);						
-					}
+				if( op == StandardOpenOption.APPEND || op == StandardOpenOption.WRITE ) {
+					throw new UnsupportedOperationException("'"+op+"' not allowed");
 				}
 			}
 		}
-
-		return ((FileSourcePath)path).getFileSource().getInputStream();
+		FileSource file = fileOf(path);
+		checkReadable(file, path);
+		return file.getInputStream();
 	}
 
-
+	/**
+	 * Used by Files.readAllBytes, Files.readString, Files.lines, Files.write
+	 * and others. (It used to throw UnsupportedOperationException, so all of
+	 * those failed.)
+	 */
 	@Override
 	public SeekableByteChannel newByteChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException {
-		throw new UnsupportedOperationException("SeekableByteChannel Not supported");
+		validate(path);
+		if( attrs != null && attrs.length > 0 ) {
+			throw new UnsupportedOperationException("Initial file attributes are not supported");
+		}
+		Opts o = new Opts(options);
+		FileSource file = fileOf(path);
+
+		if( !o.write ) {
+			checkReadable(file, path);
+			return new FileSourceChannels.Read(file, o.deleteOnClose);
+		}
+
+		checkWritable(file, path, o);
+		if( !o.read ) {
+			if( o.append ) {
+				long start = file.exists() ? file.length() : 0;
+				return new FileSourceChannels.Write(file, file.getOutputStream(true), start, o.deleteOnClose);
+			}
+			if( o.truncate || !file.exists() ) {
+				return new FileSourceChannels.Write(file, file.getOutputStream(), 0, o.deleteOnClose);
+			}
+		} else if( o.truncate && file.exists() ) {
+			file.getOutputStream().close();
+		}
+		return new FileSourceChannels.RandomAccess(file, file.getRandomAccessStream("rw"), o.read, true, o.append, o.deleteOnClose);
 	}
 
 	@Override
@@ -417,54 +497,76 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		throw new UnsupportedOperationException("newFileSystem Not supported");
 	}
 
+	/**
+	 * (The old iterator looped forever if the filter threw, next() didn't
+	 * honour the filter unless hasNext() was called first, and neither threw
+	 * NoSuchElementException.)
+	 */
 	@Override
 	public DirectoryStream<Path> newDirectoryStream(Path dir, Filter<? super Path> filter) throws IOException {
 		validate(dir);
-		FileSource file = getLinkedTo(dir, null);
+		FileSource file = resolve(dir, new LinkOption[0]);
+		if( !file.exists()) {
+			throw new NoSuchFileException(dir.toString());
+		}
 		if(! file.isDirectory()) {
-			throw new IOException(""+file+" is not a diirectory");
+			throw new NotDirectoryException(dir.toString());
 		}
 
 		FileSource[] kids = file.listFiles();
-
+		if( kids == null ) {
+			throw new IOException("Could not list "+dir);
+		}
 
 		return  new DirectoryStream<Path>() {
-			int pos = 0;
+			private boolean closed = false;
+			private boolean iteratorReturned = false;
 
 			@Override
 			public void close() throws IOException {
-				pos = kids.length;				
+				closed = true;
 			}
 
 			@Override
 			public Iterator<Path> iterator() {
+				if( closed ) {
+					throw new IllegalStateException("Directory stream is closed");
+				}
+				if( iteratorReturned ) {
+					throw new IllegalStateException("Iterator already obtained");
+				}
+				iteratorReturned = true;
 
 				return new Iterator<Path>() {
-
-					@Override
-					public Path next() {
-						return new FileSourcePath(kids[pos++]);
-					}
+					private int pos = 0;
+					private Path next;
 
 					@Override
 					public boolean hasNext() {
-						boolean ret = false;
-						while(!ret && pos< kids.length ) {
-							FileSourcePath path = new FileSourcePath(kids[pos]);
+						while( next == null && !closed && pos < kids.length ) {
+							Path path = new FileSourcePath(kids[pos++]);
 							try {
-								if( filter.accept(path)) {
-									ret = true;
-								} else {
-									pos++;
+								if( filter == null || filter.accept(path)) {
+									next = path;
 								}
 							} catch (IOException e) {
+								throw new DirectoryIteratorException(e);
 							}
 						}
+						return next != null;
+					}
+
+					@Override
+					public Path next() {
+						if( !hasNext()) {
+							throw new NoSuchElementException();
+						}
+						Path ret = next;
+						next = null;
 						return ret;
 					}
 				};
 			}
-
 		};
 	}
 
@@ -631,7 +733,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 	}
 
 
-	private void validate(Path ... paths ) throws IOException {
+	private static void validate(Path ... paths ) {
 		for(Path p : paths){
 			if (!(p instanceof FileSourcePath)) {
 				throw new ProviderMismatchException(p.toString()+" is not a filesource path");				
@@ -732,79 +834,99 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		return new FileSourceFileStore(((FileSourcePath) path).getFileSource());
 	}
 
+	/**
+	 * Throws NoSuchFileException / AccessDeniedException as the contract
+	 * requires. (It used to throw a plain IOException for a missing file, so
+	 * Files.notExists() was never true, and it checked owner permissions
+	 * rather than the current user's.)
+	 */
 	@Override
 	public void checkAccess(Path path, AccessMode... modes) throws IOException {
-		if (path instanceof FileSourcePath) {
-			FileSourcePath fsp = (FileSourcePath) path;
-			if( !fsp.getFileSource().exists()) {
-				throw new IOException(""+fsp.getFileSource()+" does not exist");
-			}
-
-			for(AccessMode m : modes) {
-				switch (m) {
-				case EXECUTE: if(!fsp.getFileSource().canOwnerExecute()) {
-					throw new IOException("no execute privileges");
-				}
-				break;
-				case READ: if( !fsp.getFileSource().canOwnerRead()) {
-					throw new IOException("no read privileges");
-				}
-				break;
-				case WRITE: if( !fsp.getFileSource().canOwnerWrite()) {
-					throw new IOException("no write privileges");
-				}
-				}
-			}
-
+		validate(path);
+		FileSource file = fileOf(path);
+		if( !file.exists() && file.getLinkedTo() == null ) {
+			throw new NoSuchFileException(path.toString());
 		}
+		file = resolve(path, new LinkOption[0]);
 
+		for(AccessMode m : modes) {
+			boolean ok = true;
+			switch (m) {
+			case READ: ok = file.canRead(); break;
+			case WRITE: ok = file.canWrite(); break;
+			case EXECUTE: ok = file.canExecute(); break;
+			}
+			if( !ok ) {
+				throw new AccessDeniedException(path.toString(), null, "no "+m.name().toLowerCase()+" permission");
+			}
+		}
 	}
 
-	@SuppressWarnings("unchecked")
-	@Override
-	public <V extends FileAttributeView> V getFileAttributeView(Path path, Class<V> type, LinkOption... options) {
-		V ret = null;
-
-		try {
-
-			validate(path);
-			FileSource file = getLinkedTo(path,options);
-			ret = (V) new FileSourcePosixFileAttributeView(file);
-
-		} catch (IOException e) {
-		}
-
-		return ret;
-	}
-
-	private FileSource getLinkedTo(Path path,LinkOption[] options) throws IOException {
-		FileSource ret = ((FileSourcePath)path).getFileSource();
-		boolean follow = true;
-
+	private static boolean followLinks(LinkOption[] options) {
 		if( options != null ) {
 			for(LinkOption lo : options) {
 				if(lo == LinkOption.NOFOLLOW_LINKS) {
-					follow = false;
+					return false;
 				}
 			}
 		}
+		return true;
+	}
 
-		if( follow) {
+	/**
+	 * The FileSource a path refers to. When following links and the path
+	 * itself doesn't exist but is a link (as memory links are), use the
+	 * link's target. (A FileProxy link that exists already reads through to
+	 * its target at the OS level.)
+	 */
+	private static FileSource resolve(Path path, LinkOption[] options) throws IOException {
+		FileSource ret = fileOf(path);
+		if( followLinks(options) && !ret.exists()) {
 			FileSource link = ret.getLinkedTo();
 			if( link != null ) {
 				ret = link;
 			}
 		}
-
 		return ret;
+	}
+
+	/** True if we should describe the link itself rather than its target. */
+	private static boolean describesLink(Path path, LinkOption[] options) throws IOException {
+		return !followLinks(options) && fileOf(path).getLinkedTo() != null;
+	}
+
+	/**
+	 * Returns null for view types we don't support, as the contract requires.
+	 * (It used to return the POSIX view whatever was asked for, so e.g. asking
+	 * for an AclFileAttributeView gave the caller a ClassCastException.)
+	 */
+	@SuppressWarnings("unchecked")
+	@Override
+	public <V extends FileAttributeView> V getFileAttributeView(Path path, Class<V> type, LinkOption... options) {
+		validate(path);
+		if( !type.isAssignableFrom(FileSourcePosixFileAttributeView.class) ) {
+			return null;
+		}
+		try {
+			return (V) new FileSourcePosixFileAttributeView(resolve(path, options), describesLink(path, options));
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
 	public <V extends BasicFileAttributes> V readAttributes(Path path, Class<V> type, LinkOption... options) throws IOException {
-		FileSourcePosixFileAttributes ret = new FileSourcePosixFileAttributes(((FileSourcePath)path).getFileSource());
-
-		return (V) ret;
+		validate(path);
+		FileSource file = resolve(path, options);
+		boolean link = describesLink(path, options);
+		if( type == BasicFileAttributes.class ) {
+			return (V) new FileSourceBasicFileAttributes(file, link);
+		}
+		if( type.isAssignableFrom(FileSourcePosixFileAttributes.class) ) {
+			return (V) new FileSourcePosixFileAttributes(file, link);
+		}
+		throw new UnsupportedOperationException("Attributes of type "+type.getName()+" are not supported");
 	}
 
 	/**
@@ -819,15 +941,15 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		Map<String, Object>  ret = new HashMap<String, Object>();
 
 		Class<?> cls = BasicFileAttributes.class;
-		Object attr =  readAttributes(path, BasicFileAttributes.class);
+		Object attr =  readAttributes(path, BasicFileAttributes.class, options);
 		String val = null;
 		String [] parts = attributes.split("[:]");
 		if( parts.length >= 2) {
 			val= parts[1];
 			if(parts[0].toLowerCase().equals("posix")) {
 
-				attr =  readAttributes(path, PosixFileAttributes.class);
-				cls = attr.getClass();
+				attr =  readAttributes(path, PosixFileAttributes.class, options);
+				cls = PosixFileAttributes.class;   // interface methods, including the basic ones
 			}
 		} else {
 			val = attributes;
@@ -839,7 +961,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		for(String name : parts) {
 			try {
 				if( name.contains("*")) {
-					for(Method m : cls.getDeclaredMethods()) {
+					for(Method m : cls.getMethods()) {
 						try {
 							m.setAccessible(true);
 							Object v = m.invoke(attr);
