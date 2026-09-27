@@ -42,6 +42,7 @@ import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import javax.swing.ProgressMonitor;
@@ -761,11 +762,13 @@ public class MemoryFileSource implements FileSource {
 
 			byte [] myData = Arrays.copyOf(owner.data, owner.data.length);
 			@Override
-			public void seek(long length) throws IOException {
-				filePointer = (int)length;
-				if( filePointer >= myData.length) {
-					filePointer = myData.length-1;
+			public void seek(long pos) throws IOException {
+				// Same rules as RandomAccessFile: negative is an error, and seeking
+				// at or past the end is allowed (the next read returns -1).
+				if( pos < 0 ) {
+					throw new IOException("Negative seek offset");
 				}
+				filePointer = (int) Math.min(pos, myData.length);
 			}
 
 			@Override
@@ -775,25 +778,26 @@ public class MemoryFileSource implements FileSource {
 			}
 
 			@Override
-			public int read(byte[] data, int i, int toRead) throws IOException {
-				int ret = 0;
-
-				for (int idx = i; idx < data.length && ret < toRead; idx++) {
-					int tmp = read();
-					if( tmp == -1) {
-						break;
-					}
-					data[idx]  =(byte) tmp;
+			public int read(byte[] data, int off, int len) throws IOException {
+				Objects.checkFromIndexSize(off, len, data.length);
+				if( len == 0 ) {
+					return 0;
 				}
-
-				return ret;
+				int available = myData.length - filePointer;
+				if( available <= 0 ) {
+					return -1;
+				}
+				int count = Math.min(len, available);
+				System.arraycopy(myData, filePointer, data, off, count);
+				filePointer += count;
+				return count;
 			}
 
 			@Override
 			public int read() throws IOException {
 				int ret = -1;
 				if( filePointer < myData.length) {
-					ret = (int)myData[filePointer++];
+					ret = myData[filePointer++] & 0xFF;  // unsigned, so bytes >= 0x80 aren't mistaken for EOF
 				}
 				return ret;
 			}
@@ -804,9 +808,46 @@ public class MemoryFileSource implements FileSource {
 				return myData.length;
 			}
 
+			/**
+			 * A view of this stream starting at the current file pointer.
+			 * Reading from it advances this stream's pointer, and closing it
+			 * closes this stream (same behavior as FileProxySeekableInputStream).
+			 */
 			@Override
 			public InputStream getInputStream() throws IOException {
-				return owner.getInputStream();
+				final ISeekableInputStream seekable = this;
+				return new InputStream() {
+					@Override
+					public int read() throws IOException {
+						return seekable.read();
+					}
+
+					@Override
+					public int read(byte[] b, int off, int len) throws IOException {
+						return seekable.read(b, off, len);
+					}
+
+					@Override
+					public long skip(long n) throws IOException {
+						int remaining = Math.max(0, myData.length - filePointer);
+						if( n <= 0 || remaining == 0 ) {
+							return 0;
+						}
+						int skipped = (int) Math.min(n, remaining);
+						filePointer += skipped;
+						return skipped;
+					}
+
+					@Override
+					public int available() {
+						return Math.max(0, myData.length - filePointer);
+					}
+
+					@Override
+					public void close() throws IOException {
+						seekable.close();
+					}
+				};
 			}
 
 			@Override
