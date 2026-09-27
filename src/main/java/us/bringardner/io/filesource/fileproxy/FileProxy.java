@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -372,7 +373,13 @@ public class FileProxy implements FileSource {
 	}
 
 
-	private boolean setPosixPermision(boolean b, PosixFilePermission p) throws IOException {
+	/**
+	 * Read-modify-write of the permission set, so synchronized: two threads
+	 * setting different bits on this object could otherwise lose one update.
+	 * (Separate FileProxy objects for the same file, or other processes, can
+	 * still race; the OS offers no atomic single-bit update.)
+	 */
+	private synchronized boolean setPosixPermision(boolean b, PosixFilePermission p) throws IOException {
 		Set<PosixFilePermission> perms = getPosixPermissions();
 		
 		if(b) {
@@ -640,18 +647,32 @@ public class FileProxy implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#renameTo(us.bringardner.io.FileSource)
 	 */
-	public boolean renameTo(FileSource dest) {
-
-		boolean ret = false;
-
+	/**
+	 * Rename/move this file to dest, which must also be a local (FileProxy)
+	 * file.
+	 * 
+	 * This used to rename to new File(dest.getCanonicalPath()): that followed
+	 * symbolic links in the destination, turned a dest from another factory
+	 * (FTP, memory ...) into a same-named local path, and on an error printed
+	 * the stack trace and returned false.
+	 * 
+	 * @return false if dest isn't a local file or already exists
+	 *         (renaming never replaces a file; use Files.move with
+	 *         REPLACE_EXISTING for that)
+	 * @throws IOException for any other failure (source missing, no
+	 *         permission, ...), with the real cause
+	 */
+	public boolean renameTo(FileSource dest) throws IOException {
+		if( !(dest instanceof FileProxy) ) {
+			return false;
+		}
 		try {
-			ret = target.renameTo(new File (dest.getCanonicalPath()));
-			name = null;
-		} catch (IOException e) {
-			e.printStackTrace();
-		} 
-
-		return ret; 
+			Files.move(target.toPath(), ((FileProxy) dest).target.toPath());
+		} catch (FileAlreadyExistsException e) {
+			return false;
+		}
+		name = null;
+		return true; 
 	}
 
 
