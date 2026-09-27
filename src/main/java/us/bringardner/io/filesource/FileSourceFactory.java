@@ -172,7 +172,8 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	}
 
 	private volatile static FileSourceFactory defaultFactory;
-	private volatile static Map<String, String> types;
+	/** Extension -> MIME type. Concurrent: addMimeType may be called at any time. */
+	private static final Map<String, String> types = new ConcurrentHashMap<>();
 	private static LogHelper logger = new LogHelper(FileSourceFactory.class);
 	private volatile int sessionId=-1;
 
@@ -208,7 +209,6 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 					+ "); using "+PROP_JAVA_PROTOCOL_HANDLER_PKGS+" for FileSource URLs");
 		}
 		// register some basic types
-		types = new HashMap<String, String>();
 		types.put("htm","text/html");
 		types.put("html","text/html");
 		types.put("css","text/css");
@@ -384,21 +384,33 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	/*
 	 * Get the default FileSource Factory
 	 */
+	/**
+	 * (This initialised the shared field without a lock, and assigned it
+	 * before checking the result, so another thread could briefly see null
+	 * or an unwanted factory.)
+	 */
 	public static FileSourceFactory getDefaultFactory() {
-		if( defaultFactory == null ){			
-			String tmp = System.getProperty("FileSource.default");
-			if( tmp != null ){
-				if( (defaultFactory = getFileSourceFactory(tmp)) == null) {
-					System.err.println("Invalid FileSOurce default = "+tmp);
-					defaultFactory = fileProxyFactory;
+		FileSourceFactory ret = defaultFactory;
+		if( ret == null ){
+			synchronized (FileSourceFactory.class) {
+				ret = defaultFactory;
+				if( ret == null ) {
+					String tmp = System.getProperty("FileSource.default");
+					if( tmp != null ){
+						ret = getFileSourceFactory(tmp);
+						if( ret == null) {
+							logger.logError("Invalid FileSource.default = "+tmp+"; using "+FileProxyFactory.FACTORY_ID);
+						}
+					}
+					if( ret == null ) {
+						ret = fileProxyFactory;
+					}
+					defaultFactory = ret;
 				}
-			}
-			if( defaultFactory == null ) {
-				defaultFactory = fileProxyFactory;
 			}
 		}
 
-		return defaultFactory;
+		return ret;
 	}
 
 	public static String [] getRegisterdFactories() {
@@ -656,7 +668,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	/*
 	 */
 	public static String getType(String extention){
-		return (String) types.get(extention);
+		return extention == null ? null : types.get(extention);
 	}
 
 	public static void addMimeType(String extension, String type){

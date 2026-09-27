@@ -73,13 +73,13 @@ public class MemoryFileSource implements FileSource {
 
 	boolean isRoot = false;
 	private String name;
-	private FileType fileType=FileType.Undefined;
+	private volatile FileType fileType=FileType.Undefined;
 
 	private MemoryFileSourceFactory theCreator ;
 	private FileSourceGroup group;
 	private FileSourceUser owner;
-	private MemoryFileSource parent;
-	FileSource linkedTo;
+	private volatile MemoryFileSource parent;
+	volatile FileSource linkedTo;
 	/** Children that exist (or have existing descendants / are links). Held strongly. */
 	private Map<String,MemoryFileSource> kidsMap = new TreeMap<>();
 	/**
@@ -99,7 +99,7 @@ public class MemoryFileSource implements FileSource {
 	private boolean canOtherWrite=true;
 	private boolean canOtherExecute=true;
 	private boolean deleted;
-	private byte[] data;
+	private volatile byte[] data;
 	private String cananicalPath;
 	private long lastAccessed=System.currentTimeMillis();
 	private long lastModified=System.currentTimeMillis();
@@ -123,18 +123,30 @@ public class MemoryFileSource implements FileSource {
 		return placeholders;
 	}
 
+	/**
+	 * All structural changes (the child maps, parent links, file data) are
+	 * made while holding one lock per memory file system -- its factory --
+	 * because an operation such as rename or delete touches several nodes.
+	 * (Nothing was synchronized, so concurrent use could corrupt the tree.)
+	 */
+	private Object lock() {
+		return theCreator != null ? theCreator : this;
+	}
+
 	MemoryFileSource getChildByName(String name) {
-		MemoryFileSource ret = kidsMap.get(name);
-		if( ret == null ) {
-			WeakReference<MemoryFileSource> ref = placeholders().get(name);
-			if( ref != null ) {
-				ret = ref.get();
-				if( ret == null ) {
-					placeholders().remove(name);
+		synchronized (lock()) {
+			MemoryFileSource ret = kidsMap.get(name);
+			if( ret == null ) {
+				WeakReference<MemoryFileSource> ref = placeholders().get(name);
+				if( ref != null ) {
+					ret = ref.get();
+					if( ret == null ) {
+						placeholders().remove(name);
+					}
 				}
 			}
+			return ret;
 		}
-		return ret;
 	}
 
 	/** A node is kept in its parent's tree only if it exists, is a link, or has kept children. */
@@ -147,19 +159,21 @@ public class MemoryFileSource implements FileSource {
 	 * maps after its state changed, and propagate up the tree.
 	 */
 	void updateRetention() {
-		if( parent == null ) {
-			return;
-		}
-		if( shouldRetain() ) {
-			if( parent.kidsMap.get(name) != this ) {
-				parent.kidsMap.put(name, this);
-				parent.placeholders().remove(name);
+		synchronized (lock()) {
+			if( parent == null ) {
+				return;
+			}
+			if( shouldRetain() ) {
+				if( parent.kidsMap.get(name) != this ) {
+					parent.kidsMap.put(name, this);
+					parent.placeholders().remove(name);
+					parent.updateRetention();
+				}
+			} else if( parent.kidsMap.get(name) == this ) {
+				parent.kidsMap.remove(name);
+				parent.addPlaceholder(this);
 				parent.updateRetention();
 			}
-		} else if( parent.kidsMap.get(name) == this ) {
-			parent.kidsMap.remove(name);
-			parent.addPlaceholder(this);
-			parent.updateRetention();
 		}
 	}
 
@@ -287,55 +301,59 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	public boolean createNewFile() throws IOException {
-		// Same contract as java.io.File.createNewFile(): false if it already
-		// exists, IOException if the parent directory doesn't exist.
-		if( exists() ) {
-			return false;
+		synchronized (lock()) {
+			// Same contract as java.io.File.createNewFile(): false if it already
+			// exists, IOException if the parent directory doesn't exist.
+			if( exists() ) {
+				return false;
+			}
+			if( parent == null || !parent.isDirectory() ) {
+				throw new IOException("No such file or directory: "+getParent());
+			}
+			data = new byte[0];
+			fileType = FileType.File;
+			canOwnerRead = canOwnerWrite = true;
+			deleted = false;
+			lastModified = lastAccessed = createDate = System.currentTimeMillis();
+			updateRetention();
+			return true;
 		}
-		if( parent == null || !parent.isDirectory() ) {
-			throw new IOException("No such file or directory: "+getParent());
-		}
-		data = new byte[0];
-		fileType = FileType.File;
-		canOwnerRead = canOwnerWrite = true;
-		deleted = false;
-		lastModified = lastAccessed = createDate = System.currentTimeMillis();
-		updateRetention();
-		return true;
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#delete()
 	 */
 	public boolean delete() {
-		// Same contract as java.io.File.delete(): false if it doesn't exist or
-		// is a directory that isn't empty. (It used to always return true, never
-		// unlinked the node and happily "deleted" non-empty directories.)
-		if( isRoot || parent == null ) {
-			return false;
-		}
-		if( !exists() ) {
-			if( linkedTo == null ) {
+		synchronized (lock()) {
+			// Same contract as java.io.File.delete(): false if it doesn't exist or
+			// is a directory that isn't empty. (It used to always return true, never
+			// unlinked the node and happily "deleted" non-empty directories.)
+			if( isRoot || parent == null ) {
 				return false;
 			}
-			linkedTo = null;           // deleting a link removes the link itself
+			if( !exists() ) {
+				if( linkedTo == null ) {
+					return false;
+				}
+				linkedTo = null;           // deleting a link removes the link itself
+				updateRetention();
+				return true;
+			}
+			if( isDirectory() ) {
+				for(MemoryFileSource kid : kidsMap.values()) {
+					if( kid.fileType != FileType.Undefined || !kid.kidsMap.isEmpty() ) {
+						return false;   // not empty
+					}
+				}
+				// Only link entries are left (they never show in listFiles()); they go with the directory.
+				kidsMap.clear();
+			}
+			deleted = true;
+			data = null;
+			fileType = FileType.Undefined;
 			updateRetention();
 			return true;
 		}
-		if( isDirectory() ) {
-			for(MemoryFileSource kid : kidsMap.values()) {
-				if( kid.fileType != FileType.Undefined || !kid.kidsMap.isEmpty() ) {
-					return false;   // not empty
-				}
-			}
-			// Only link entries are left (they never show in listFiles()); they go with the directory.
-			kidsMap.clear();
-		}
-		deleted = true;
-		data = null;
-		fileType = FileType.Undefined;
-		updateRetention();
-		return true;
 	}
 
 	/* (non-Javadoc)
@@ -349,28 +367,30 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#getCanonicalPath()
 	 */
 	public String getCanonicalPath() throws IOException {
-		if( cananicalPath == null ) {
-			synchronized (this) {
-				if( cananicalPath == null ) {
-					StringBuilder tmp = new StringBuilder();
-					if( parent != null ) {
-						tmp.append(parent.getCanonicalPath());
-					} else {
-						return "/";
+		synchronized (lock()) {
+			if( cananicalPath == null ) {
+				{
+					if( cananicalPath == null ) {
+						StringBuilder tmp = new StringBuilder();
+						if( parent != null ) {
+							tmp.append(parent.getCanonicalPath());
+						} else {
+							return "/";
+						}
+						tmp.append('/');
+						if( (name.isEmpty() || !name.equals("/"))) {
+							tmp.append(name);
+						}
+						cananicalPath = tmp.toString().trim();
 					}
-					tmp.append('/');
-					if( (name.isEmpty() || !name.equals("/"))) {
-						tmp.append(name);
-					}
-					cananicalPath = tmp.toString().trim();
+				}
+				if( cananicalPath.startsWith("//")) {
+					cananicalPath = cananicalPath.substring(1);
 				}
 			}
-			if( cananicalPath.startsWith("//")) {
-				cananicalPath = cananicalPath.substring(1);
-			}
-		}
 
-		return cananicalPath;
+			return cananicalPath;
+		}
 	}
 
 	/* (non-Javadoc)
@@ -452,128 +472,138 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#listFiles(us.bringardner.io.FileSourceFilter)
 	 */
 	public FileSource[] listFiles(FileSourceFilter filter) throws IOException {
-		if( !canRead() ) {
-			// was IllegalAccessError, a java.lang.Error that callers' catch (Exception) misses
-			throw new AccessDeniedException(getAbsolutePath());
-		}
-		MemoryFileSource [] ret = null;
-		ArrayList<MemoryFileSource> list = new ArrayList<MemoryFileSource>();
+		synchronized (lock()) {
+			if( !canRead() ) {
+				// was IllegalAccessError, a java.lang.Error that callers' catch (Exception) misses
+				throw new AccessDeniedException(getAbsolutePath());
+			}
+			MemoryFileSource [] ret = null;
+			ArrayList<MemoryFileSource> list = new ArrayList<MemoryFileSource>();
 
 
-		for(MemoryFileSource file : kidsMap.values() ) {
-			if( file.fileType != FileType.Undefined) {
-				if(filter==null || filter.accept(file)){
-					list.add(file);
+			for(MemoryFileSource file : kidsMap.values() ) {
+				if( file.fileType != FileType.Undefined) {
+					if(filter==null || filter.accept(file)){
+						list.add(file);
+					}
 				}
 			}
+
+			ret = new MemoryFileSource[list.size()];
+
+			for(int idx=0; idx < ret.length; idx++ ) {
+				ret[idx] = (MemoryFileSource)list.get(idx);
+			}
+
+			return ret;
 		}
-
-		ret = new MemoryFileSource[list.size()];
-
-		for(int idx=0; idx < ret.length; idx++ ) {
-			ret[idx] = (MemoryFileSource)list.get(idx);
-		}
-
-		return ret;
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#mkdir()
 	 */
 	public boolean mkdir()  {
-		if( isFile() ) {
-			return false;
-		}
-		if(parent!=null && !parent.exists()) {
-			return false;
-		}
-		fileType = FileType.Directory;
-		canOwnerRead = canOwnerWrite = true;
-		updateRetention();
+		synchronized (lock()) {
+			if( isFile() ) {
+				return false;
+			}
+			if(parent!=null && !parent.exists()) {
+				return false;
+			}
+			fileType = FileType.Directory;
+			canOwnerRead = canOwnerWrite = true;
+			updateRetention();
 
-		return true;
+			return true;
+		}
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#mkdirs()
 	 */
 	public boolean mkdirs() throws IOException {
-		boolean ret = false;
-		if( parent != null ) {
-			ret = parent.mkdirs();			
-		} else {
-			ret = true;
-		}
+		synchronized (lock()) {
+			boolean ret = false;
+			if( parent != null ) {
+				ret = parent.mkdirs();			
+			} else {
+				ret = true;
+			}
 
-		if( ret ) {
-			ret = mkdir();
+			if( ret ) {
+				ret = mkdir();
+			}
+			return ret;
 		}
-		return ret;
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#renameTo(us.bringardner.io.FileSource)
 	 */
 	public boolean renameTo(FileSource dest) throws IOException {
-		boolean ret = false;
-		if( exists() && 
-				!isRoot && 
-				canOwnerWrite() )  {
-			if (dest instanceof MemoryFileSource) {
-				MemoryFileSource newFile = (MemoryFileSource) dest;
-				if( !newFile.exists() && 
-						!equals(newFile) &&
-						!newFile.isRoot &&
-						!newFile.isDescendantOf(this) ) {
+		synchronized (lock()) {
+			boolean ret = false;
+			if( exists() && 
+					!isRoot && 
+					canOwnerWrite() )  {
+				if (dest instanceof MemoryFileSource && ((MemoryFileSource) dest).theCreator == theCreator) {
+					// (only within one memory file system; moving a node into another
+					// factory's tree would leave it with the wrong factory and lock)
+					MemoryFileSource newFile = (MemoryFileSource) dest;
+					if( !newFile.exists() && 
+							!equals(newFile) &&
+							!newFile.isRoot &&
+							!newFile.isDescendantOf(this) ) {
 
-					newFile.data= data;
-					newFile.canOwnerRead = canOwnerRead;
-					newFile.canOwnerWrite = canOwnerWrite;
-					newFile.canExecute = canExecute;
-					newFile.canGroupRead = canGroupRead;
-					newFile.canGroupWrite = canGroupWrite;
-					newFile.canGroupExecute = canGroupExecute;
-					newFile.canOtherRead = canOtherRead;
-					newFile.canOtherWrite = canOtherWrite;
-					newFile.canOtherExecute = canOtherExecute;
-					newFile.fileType = fileType;
-					newFile.group = group;
-					newFile.lastModified = lastModified;
-					newFile.lastAccessed = lastAccessed;
-					newFile.createDate = createDate;
-					newFile.owner = owner;
-					newFile.linkedTo = linkedTo;
-					newFile.isRoot = isRoot;
-					newFile.deleted = false;
+						newFile.data= data;
+						newFile.canOwnerRead = canOwnerRead;
+						newFile.canOwnerWrite = canOwnerWrite;
+						newFile.canExecute = canExecute;
+						newFile.canGroupRead = canGroupRead;
+						newFile.canGroupWrite = canGroupWrite;
+						newFile.canGroupExecute = canGroupExecute;
+						newFile.canOtherRead = canOtherRead;
+						newFile.canOtherWrite = canOtherWrite;
+						newFile.canOtherExecute = canOtherExecute;
+						newFile.fileType = fileType;
+						newFile.group = group;
+						newFile.lastModified = lastModified;
+						newFile.lastAccessed = lastAccessed;
+						newFile.createDate = createDate;
+						newFile.owner = owner;
+						newFile.linkedTo = linkedTo;
+						newFile.isRoot = isRoot;
+						newFile.deleted = false;
 
-					// Move the children too (previously a renamed directory lost them).
-					for(MemoryFileSource kid : kidsMap.values()) {
-						kid.parent = newFile;
-						kid.clearPathCache();
-						newFile.kidsMap.put(kid.getName(), kid);
+						// Move the children too (previously a renamed directory lost them).
+						for(MemoryFileSource kid : kidsMap.values()) {
+							kid.parent = newFile;
+							kid.clearPathCache();
+							newFile.kidsMap.put(kid.getName(), kid);
+						}
+						kidsMap.clear();
+						for(MemoryFileSource kid : livePlaceholders()) {
+							kid.parent = newFile;
+							kid.clearPathCache();
+							newFile.addPlaceholder(kid);
+						}
+						placeholders().clear();
+
+						data = null;
+						linkedTo = null;
+						fileType = FileType.Undefined;
+						canOwnerRead = canOwnerWrite = false;
+						newFile.updateRetention();
+						updateRetention();
+						ret = true;
+
 					}
-					kidsMap.clear();
-					for(MemoryFileSource kid : livePlaceholders()) {
-						kid.parent = newFile;
-						kid.clearPathCache();
-						newFile.addPlaceholder(kid);
-					}
-					placeholders().clear();
-
-					data = null;
-					linkedTo = null;
-					fileType = FileType.Undefined;
-					canOwnerRead = canOwnerWrite = false;
-					newFile.updateRetention();
-					updateRetention();
-					ret = true;
 
 				}
-
 			}
-		}
 
-		return ret; 
+			return ret; 
+		}
 	}
 
 	/* (non-Javadoc)
@@ -597,81 +627,91 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#getInputStream()
 	 */
 	public InputStream getInputStream() throws IOException {
-		if( !exists() && linkedTo != null ) {
-			return linkedTo.getInputStream();
-		}
-		checkReadable();
-		ByteArrayInputStream ret = new ByteArrayInputStream(data == null ? new byte[0] : data);
-		lastAccessed = System.currentTimeMillis();
+		synchronized (lock()) {
+			if( !exists() && linkedTo != null ) {
+				return linkedTo.getInputStream();
+			}
+			checkReadable();
+			ByteArrayInputStream ret = new ByteArrayInputStream(data == null ? new byte[0] : data);
+			lastAccessed = System.currentTimeMillis();
 
-		return ret;
+			return ret;
+		}
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#getOutputStream()
 	 */
 	public OutputStream getOutputStream() throws FileNotFoundException {
-		if(fileType != FileType.Undefined &&  !canOwnerWrite ) {
-			throw new FileNotFoundException(getAbsolutePath()+" (Permission denied)");
-		}
-		if( exists() && fileType==FileType.Directory) {
-			throw new FileNotFoundException();
-		}
-
-		ByteArrayOutputStream ret = new ByteArrayOutputStream() {
-			@Override
-			public void close() throws IOException {
-				super.close();
-				data = super.toByteArray();
+		synchronized (lock()) {
+			if(fileType != FileType.Undefined &&  !canOwnerWrite ) {
+				throw new FileNotFoundException(getAbsolutePath()+" (Permission denied)");
 			}
-		};
-		fileType = FileType.File;
-		canOwnerRead = canOwnerWrite = true;
-		updateRetention();
-		lastAccessed = System.currentTimeMillis();
-		lastModified = System.currentTimeMillis();
+			if( exists() && fileType==FileType.Directory) {
+				throw new FileNotFoundException();
+			}
 
-		return ret;
+			ByteArrayOutputStream ret = new ByteArrayOutputStream() {
+				@Override
+				public void close() throws IOException {
+					super.close();
+					synchronized (lock()) {
+						data = super.toByteArray();
+					}
+				}
+			};
+			fileType = FileType.File;
+			canOwnerRead = canOwnerWrite = true;
+			updateRetention();
+			lastAccessed = System.currentTimeMillis();
+			lastModified = System.currentTimeMillis();
+
+			return ret;
+		}
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#getOutputStream(boolean)
 	 */
 	public OutputStream getOutputStream(boolean append) throws FileNotFoundException {
-		if( exists() && fileType==FileType.Directory) {
-			throw new FileNotFoundException(getAbsolutePath()+" (Is a directory)");
-		}
-		if( fileType != FileType.Undefined && !canOwnerWrite ) {
-			throw new FileNotFoundException(getAbsolutePath()+" (Permission denied)");
-		}
+		synchronized (lock()) {
+			if( exists() && fileType==FileType.Directory) {
+				throw new FileNotFoundException(getAbsolutePath()+" (Is a directory)");
+			}
+			if( fileType != FileType.Undefined && !canOwnerWrite ) {
+				throw new FileNotFoundException(getAbsolutePath()+" (Permission denied)");
+			}
 
-		if( data == null ) {
-			data = new byte[0];
-			fileType = FileType.File;
-			canOwnerRead = canOwnerWrite = true;
-			updateRetention();
-		}
+			if( data == null ) {
+				data = new byte[0];
+				fileType = FileType.File;
+				canOwnerRead = canOwnerWrite = true;
+				updateRetention();
+			}
 
-		// buffer only the appended bytes (it used to be sized to the existing data)
-		ByteArrayOutputStream ret = new ByteArrayOutputStream(256) {
-			@Override
-			public void close() throws IOException {
-				super.close();
-				byte [] tmp = super.toByteArray();
-				if( tmp.length>0) {
-					if( data.length == 0 ) {
-						data = tmp;
-					} else {
-						byte [] tmp2 = Arrays.copyOf(data, data.length+tmp.length);
-						System.arraycopy(tmp, 0, tmp2, data.length, tmp.length);
-						data = tmp2;
+			// buffer only the appended bytes (it used to be sized to the existing data)
+			ByteArrayOutputStream ret = new ByteArrayOutputStream(256) {
+				@Override
+				public void close() throws IOException {
+					super.close();
+					byte [] tmp = super.toByteArray();
+					synchronized (lock()) {
+						if( tmp.length>0) {
+							if( data.length == 0 ) {
+								data = tmp;
+							} else {
+								byte [] tmp2 = Arrays.copyOf(data, data.length+tmp.length);
+								System.arraycopy(tmp, 0, tmp2, data.length, tmp.length);
+								data = tmp2;
+							}
+						}
 					}
 				}
-			}
-		};
-		lastAccessed = System.currentTimeMillis();
-		lastModified = System.currentTimeMillis();
-		return ret;
+			};
+			lastAccessed = System.currentTimeMillis();
+			lastModified = System.currentTimeMillis();
+			return ret;
+		}
 	}
 
 
@@ -739,11 +779,15 @@ public class MemoryFileSource implements FileSource {
 
 
 	byte[] getData() {
-		return data;
+		synchronized (lock()) {
+			return data;
+		}
 	}
 
 	void setData(byte[] data) {
-		this.data = data;
+		synchronized (lock()) {
+			this.data = data;
+		}
 	}
 
 	public static String getContentType(String name) {
@@ -771,15 +815,17 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.filesource.FileSource#list()
 	 */
 	public String[] list() {
-		// Only list children that exist (same set as listFiles()).
-		ArrayList<String> ret = new ArrayList<String>();
-		for (MemoryFileSource kid : kidsMap.values()) {
-			if( kid.fileType != FileType.Undefined) {
-				ret.add(kid.getName());
+		synchronized (lock()) {
+			// Only list children that exist (same set as listFiles()).
+			ArrayList<String> ret = new ArrayList<String>();
+			for (MemoryFileSource kid : kidsMap.values()) {
+				if( kid.fileType != FileType.Undefined) {
+					ret.add(kid.getName());
+				}
 			}
-		}
 
-		return ret.toArray(new String[ret.size()]); 
+			return ret.toArray(new String[ret.size()]); 
+		}
 	}
 
 	/* (non-Javadoc)
@@ -877,20 +923,22 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	public InputStream getInputStream(long startingPos) throws IOException {
-		if( !exists() && linkedTo != null ) {
-			return linkedTo.getInputStream(startingPos);
-		}
-		// (This used to turn a missing file into an existing, empty one.)
-		checkReadable();
-		if( startingPos < 0 ) {
-			throw new IOException("Negative starting position "+startingPos);
-		}
-		byte[] bytes = data == null ? new byte[0] : data;
-		int start = (int) Math.min(startingPos, bytes.length);
-		ByteArrayInputStream ret = new ByteArrayInputStream(bytes, start, bytes.length - start);
-		lastAccessed = System.currentTimeMillis();
+		synchronized (lock()) {
+			if( !exists() && linkedTo != null ) {
+				return linkedTo.getInputStream(startingPos);
+			}
+			// (This used to turn a missing file into an existing, empty one.)
+			checkReadable();
+			if( startingPos < 0 ) {
+				throw new IOException("Negative starting position "+startingPos);
+			}
+			byte[] bytes = data == null ? new byte[0] : data;
+			int start = (int) Math.min(startingPos, bytes.length);
+			ByteArrayInputStream ret = new ByteArrayInputStream(bytes, start, bytes.length - start);
+			lastAccessed = System.currentTimeMillis();
 
-		return ret;
+			return ret;
+		}
 	}
 
 	@Override
@@ -947,129 +995,133 @@ public class MemoryFileSource implements FileSource {
 
 	@Override
 	public ISeekableInputStream getSeekableInputStream() throws IOException {
-		if( !exists() && linkedTo != null ) {
-			return linkedTo.getSeekableInputStream();
-		}
-		checkReadable();
-		final byte[] snapshot = data == null ? new byte[0] : data;
-
-		final MemoryFileSource owner = this;
-
-		return new ISeekableInputStream() {
-			int filePointer = 0;
-
-			byte [] myData = Arrays.copyOf(snapshot, snapshot.length);
-			@Override
-			public void seek(long pos) throws IOException {
-				// Same rules as RandomAccessFile: negative is an error, and seeking
-				// at or past the end is allowed (the next read returns -1).
-				if( pos < 0 ) {
-					throw new IOException("Negative seek offset");
-				}
-				filePointer = (int) Math.min(pos, myData.length);
+		synchronized (lock()) {
+			if( !exists() && linkedTo != null ) {
+				return linkedTo.getSeekableInputStream();
 			}
+			checkReadable();
+			final byte[] snapshot = data == null ? new byte[0] : data;
 
-			@Override
-			public int read(byte[] data) throws IOException {
+			final MemoryFileSource owner = this;
 
-				return read(data, 0, data.length);
-			}
+			return new ISeekableInputStream() {
+				int filePointer = 0;
 
-			@Override
-			public int read(byte[] data, int off, int len) throws IOException {
-				Objects.checkFromIndexSize(off, len, data.length);
-				if( len == 0 ) {
-					return 0;
-				}
-				int available = myData.length - filePointer;
-				if( available <= 0 ) {
-					return -1;
-				}
-				int count = Math.min(len, available);
-				System.arraycopy(myData, filePointer, data, off, count);
-				filePointer += count;
-				return count;
-			}
-
-			@Override
-			public int read() throws IOException {
-				int ret = -1;
-				if( filePointer < myData.length) {
-					ret = myData[filePointer++] & 0xFF;  // unsigned, so bytes >= 0x80 aren't mistaken for EOF
-				}
-				return ret;
-			}
-
-			@Override
-			public long length() throws IOException {
-
-				return myData.length;
-			}
-
-			/**
-			 * A view of this stream starting at the current file pointer.
-			 * Reading from it advances this stream's pointer, and closing it
-			 * closes this stream (same behavior as FileProxySeekableInputStream).
-			 */
-			@Override
-			public InputStream getInputStream() throws IOException {
-				final ISeekableInputStream seekable = this;
-				return new InputStream() {
-					@Override
-					public int read() throws IOException {
-						return seekable.read();
+				byte [] myData = Arrays.copyOf(snapshot, snapshot.length);
+				@Override
+				public void seek(long pos) throws IOException {
+					// Same rules as RandomAccessFile: negative is an error, and seeking
+					// at or past the end is allowed (the next read returns -1).
+					if( pos < 0 ) {
+						throw new IOException("Negative seek offset");
 					}
+					filePointer = (int) Math.min(pos, myData.length);
+				}
 
-					@Override
-					public int read(byte[] b, int off, int len) throws IOException {
-						return seekable.read(b, off, len);
+				@Override
+				public int read(byte[] data) throws IOException {
+
+					return read(data, 0, data.length);
+				}
+
+				@Override
+				public int read(byte[] data, int off, int len) throws IOException {
+					Objects.checkFromIndexSize(off, len, data.length);
+					if( len == 0 ) {
+						return 0;
 					}
+					int available = myData.length - filePointer;
+					if( available <= 0 ) {
+						return -1;
+					}
+					int count = Math.min(len, available);
+					System.arraycopy(myData, filePointer, data, off, count);
+					filePointer += count;
+					return count;
+				}
 
-					@Override
-					public long skip(long n) throws IOException {
-						int remaining = Math.max(0, myData.length - filePointer);
-						if( n <= 0 || remaining == 0 ) {
-							return 0;
+				@Override
+				public int read() throws IOException {
+					int ret = -1;
+					if( filePointer < myData.length) {
+						ret = myData[filePointer++] & 0xFF;  // unsigned, so bytes >= 0x80 aren't mistaken for EOF
+					}
+					return ret;
+				}
+
+				@Override
+				public long length() throws IOException {
+
+					return myData.length;
+				}
+
+				/**
+				 * A view of this stream starting at the current file pointer.
+				 * Reading from it advances this stream's pointer, and closing it
+				 * closes this stream (same behavior as FileProxySeekableInputStream).
+				 */
+				@Override
+				public InputStream getInputStream() throws IOException {
+					final ISeekableInputStream seekable = this;
+					return new InputStream() {
+						@Override
+						public int read() throws IOException {
+							return seekable.read();
 						}
-						int skipped = (int) Math.min(n, remaining);
-						filePointer += skipped;
-						return skipped;
-					}
 
-					@Override
-					public int available() {
-						return Math.max(0, myData.length - filePointer);
-					}
+						@Override
+						public int read(byte[] b, int off, int len) throws IOException {
+							return seekable.read(b, off, len);
+						}
 
-					@Override
-					public void close() throws IOException {
-						seekable.close();
-					}
-				};
-			}
+						@Override
+						public long skip(long n) throws IOException {
+							int remaining = Math.max(0, myData.length - filePointer);
+							if( n <= 0 || remaining == 0 ) {
+								return 0;
+							}
+							int skipped = (int) Math.min(n, remaining);
+							filePointer += skipped;
+							return skipped;
+						}
 
-			@Override
-			public long getFilePointer() throws IOException {
-				return filePointer;
-			}
+						@Override
+						public int available() {
+							return Math.max(0, myData.length - filePointer);
+						}
 
-			@Override
-			public FileSource getFile() throws IOException {
-				return owner;
-			}
+						@Override
+						public void close() throws IOException {
+							seekable.close();
+						}
+					};
+				}
 
-			@Override
-			public void close() throws IOException {
-				filePointer = myData.length+1;				
-			}
-		};
+				@Override
+				public long getFilePointer() throws IOException {
+					return filePointer;
+				}
+
+				@Override
+				public FileSource getFile() throws IOException {
+					return owner;
+				}
+
+				@Override
+				public void close() throws IOException {
+					filePointer = myData.length+1;				
+				}
+			};
+		}
 	}
 
 
 
 	public void addChild(MemoryFileSource file) {
-		addPlaceholder(file);
-		file.updateRetention();
+		synchronized (lock()) {
+			addPlaceholder(file);
+			file.updateRetention();
+		}
 	}
 
 	@Override

@@ -106,7 +106,7 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 		this.name = name;
 	}
 
-	String expandDots(String path) {
+	synchronized String expandDots(String path) {
 		char sep = getSeperatorChar();
 		List<String> expanded = new ArrayList<>();
 		String [] parts = path.split(""+sep);
@@ -161,7 +161,7 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 	}
 
 
-	private void init() {
+	private synchronized void init() {
 		connected=false;
 		roots = new MemoryFileSource[1];
 		MemoryFileSource root = new MemoryFileSource(null, "/", this);
@@ -179,7 +179,7 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 	/* Set The Current dir (Ignored for FileProxy)
 	 * @see us.bringardner.io.FileSourceFactory#setCurrentDirectory(us.bringardner.io.FileSource)
 	 */
-	public void setCurrentDirectory(FileSource dir) {
+	public synchronized void setCurrentDirectory(FileSource dir) {
 		if (!(dir instanceof MemoryFileSource)) {
 			throw new RuntimeException("currentDir can only be a MemoryFileSource");			
 		}
@@ -274,13 +274,13 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 
 	@Override
 	public FileSourceFactory createThreadSafeCopy() {
-		// This factory is thread safe
+		// Thread safe: memory file system changes are synchronized on this factory
 		return this;
 	}
 
 
 	@Override
-	public FileSource createFileSource(String fullPath) throws IOException {
+	public synchronized FileSource createFileSource(String fullPath) throws IOException {
 		String expand = expandDots(fullPath);
 
 		if(fullPath.equals("/") || expand.isEmpty() || expand.equals("/")) {
