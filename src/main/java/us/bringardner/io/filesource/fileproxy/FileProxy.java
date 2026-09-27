@@ -337,14 +337,25 @@ public class FileProxy implements FileSource {
 	File target; 
 	private String name;
 	private FileSourceFactory theCreator ;
-	private GroupPrincipal group;
-	private UserPrincipal owner;
-	private PermissionManager permissions;
+	// Not serializable (JDK principals, OS-specific helper): rebuilt on demand
+	// after deserialization. They used to be plain fields, so serializing a
+	// FileProxy threw NotSerializableException.
+	private transient volatile GroupPrincipal group;
+	private transient volatile UserPrincipal owner;
+	private transient volatile PermissionManager permissions;
 
 	public FileProxy(File target,FileSourceFactory creator) {
-		permissions= FileSourceFactory.isWindows()?new WindowsPermissionManager(target): new PosixPermissionManager();
 		this.target = target;
 		this.theCreator = creator;
+	}
+
+	private PermissionManager permissions() {
+		PermissionManager ret = permissions;
+		if( ret == null ) {
+			ret = FileSourceFactory.isWindows()?new WindowsPermissionManager(target): new PosixPermissionManager();
+			permissions = ret;
+		}
+		return ret;
 	}
 
 	private synchronized	Set<PosixFilePermission> getPosixPermissions() throws IOException {
@@ -398,63 +409,63 @@ public class FileProxy implements FileSource {
 	 * @see us.bringardner.io.FileSource#canRead()
 	 */
 	public boolean canRead() throws IOException {
-		return permissions.canRead();
+		return permissions().canRead();
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#canWrite()
 	 */
 	public boolean canWrite() throws IOException {
-		return permissions.canWrite();
+		return permissions().canWrite();
 	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#canWrite()
 	 */
 	public boolean canExecute() throws IOException {
-		return permissions.canExecute();
+		return permissions().canExecute();
 	}
 
 	@Override
 	public boolean canOwnerExecute() throws IOException {
-		return permissions.canOwnerExecute();
+		return permissions().canOwnerExecute();
 	}
 
 	@Override
 	public boolean canOwnerRead() throws IOException {		 
-		return permissions.canOwnerRead();
+		return permissions().canOwnerRead();
 	}
 	@Override
 	public boolean canOwnerWrite() throws IOException {		
-		return permissions.canOwnerWrite();
+		return permissions().canOwnerWrite();
 	}
 	@Override
 	public boolean canGroupRead() throws IOException {
-		return permissions.canGroupRead();
+		return permissions().canGroupRead();
 	}
 	@Override
 	public boolean canGroupWrite() throws IOException {
-		return permissions.canGroupWrite();
+		return permissions().canGroupWrite();
 	}
 
 	@Override
 	public boolean canGroupExecute() throws IOException {
-		return permissions.canGroupExecute();
+		return permissions().canGroupExecute();
 	}
 
 	@Override
 	public boolean canOtherRead() throws IOException {
-		return permissions.canOtherRead();
+		return permissions().canOtherRead();
 	}
 
 	@Override
 	public boolean canOtherWrite() throws IOException {
-		return permissions.canOtherWrite();
+		return permissions().canOtherWrite();
 	}
 
 	@Override
 	public boolean canOtherExecute() throws IOException {
-		return permissions.canOtherExecute();
+		return permissions().canOtherExecute();
 	}
 
 	/* (non-Javadoc)
@@ -811,8 +822,8 @@ public class FileProxy implements FileSource {
 	public GroupPrincipal getGroup() throws IOException {
 		if( group == null ) {
 			synchronized (this) {
-				if (permissions instanceof WindowsPermissionManager) {
-					WindowsPermissionManager wpm = (WindowsPermissionManager) permissions;
+				if (permissions() instanceof WindowsPermissionManager) {
+					WindowsPermissionManager wpm = (WindowsPermissionManager) permissions();
 					group = (GroupPrincipal) wpm.getGroupPrincipal();
 				} else {
 					PosixFileAttributeView view2 = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class,LinkOption.NOFOLLOW_LINKS);
@@ -967,14 +978,14 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public boolean setExecutable(boolean executable, boolean ownerOnly) throws IOException {
-		return permissions.setExecutable(executable, ownerOnly);		
+		return permissions().setExecutable(executable, ownerOnly);		
 	}
 
 
 
 	@Override
 	public boolean setReadable(boolean readable, boolean ownerOnly) throws IOException {
-		return permissions.setReadable(readable, ownerOnly);
+		return permissions().setReadable(readable, ownerOnly);
 
 	}
 
@@ -982,7 +993,7 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public boolean setWritable(boolean writetable, boolean ownerOnly) throws IOException {
-		return permissions.setWritable(writetable, ownerOnly);
+		return permissions().setWritable(writetable, ownerOnly);
 
 	}
 
@@ -990,7 +1001,7 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public boolean setExecutable(boolean executable)  throws IOException {
-		return permissions.setExecutable(executable);
+		return permissions().setExecutable(executable);
 
 	}
 
@@ -998,7 +1009,7 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public boolean setReadable(boolean readable) throws IOException {
-		boolean ret = permissions.setReadable(readable);
+		boolean ret = permissions().setReadable(readable);
 		return ret;
 
 	}
@@ -1007,52 +1018,52 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public boolean setWritable(boolean writetable)  throws IOException {
-		return permissions.setWritable(writetable);		
+		return permissions().setWritable(writetable);		
 	}
 
 	@Override
 	public boolean setGroupExecutable(boolean executable) throws IOException {
-		return permissions.setGroupExecutable(executable);		
+		return permissions().setGroupExecutable(executable);		
 	}
 
 	@Override
 	public boolean setGroupReadable(boolean readable) throws IOException {
-		return permissions.setGroupReadable(readable);
+		return permissions().setGroupReadable(readable);
 	}
 
 	@Override
 	public boolean setGroupWritable(boolean writeable) throws IOException {
-		return permissions.setGroupWritable(writeable);
+		return permissions().setGroupWritable(writeable);
 	}
 
 	@Override
 	public boolean setOwnerReadable(boolean readable) throws IOException {
-		return permissions.setOwnerReadable(readable);
+		return permissions().setOwnerReadable(readable);
 	}
 
 	@Override
 	public boolean setOwnerWritable(boolean writeable) throws IOException {
-		return permissions.setOwnerWritable(writeable);
+		return permissions().setOwnerWritable(writeable);
 	}
 
 	@Override
 	public boolean setOwnerExecutable(boolean executable) throws IOException {		
-		return permissions.setOwnerExecutable(executable);
+		return permissions().setOwnerExecutable(executable);
 	}
 
 	@Override
 	public boolean setOtherReadable(boolean readable) throws IOException {
-		return permissions.setOtherReadable(readable);
+		return permissions().setOtherReadable(readable);
 	}
 
 	@Override
 	public boolean setOtherWritable(boolean writeable) throws IOException {
-		return permissions.setOtherWritable(writeable);
+		return permissions().setOtherWritable(writeable);
 	}
 
 	@Override
 	public boolean setOtherExecutable(boolean executable) throws IOException {
-		return permissions.setOtherExecutable(executable);
+		return permissions().setOtherExecutable(executable);
 	}
 
 	@Override
@@ -1071,17 +1082,17 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public boolean setLastAccessTime(long time) throws IOException {		
-		return permissions.setLastAccessTime(time);
+		return permissions().setLastAccessTime(time);
 	}
 
 	@Override
 	public boolean setCreateTime(long time) throws IOException {
-		return permissions.setCreateTime(time);
+		return permissions().setCreateTime(time);
 	}
 
 	@Override
 	public boolean setGroup(GroupPrincipal group) throws IOException {
-		return permissions.setGroup(group);
+		return permissions().setGroup(group);
 	}
 
 	@Override

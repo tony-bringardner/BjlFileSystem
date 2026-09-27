@@ -86,7 +86,7 @@ public class MemoryFileSource implements FileSource {
 	 * exist). Held weakly so lookups don't grow the tree forever, while anyone
 	 * still holding the object keeps getting the same instance for that path.
 	 */
-	private final Map<String,WeakReference<MemoryFileSource>> placeholders = new HashMap<>();
+	private transient Map<String,WeakReference<MemoryFileSource>> placeholders;   // WeakReference isn't serializable
 	private int placeholderPurgeAt = 64;
 	private boolean canOwnerRead=true;
 	private boolean canOwnerWrite=true;
@@ -115,14 +115,21 @@ public class MemoryFileSource implements FileSource {
 
 	}
 
+	private Map<String,WeakReference<MemoryFileSource>> placeholders() {
+		if( placeholders == null ) {
+			placeholders = new HashMap<>();
+		}
+		return placeholders;
+	}
+
 	MemoryFileSource getChildByName(String name) {
 		MemoryFileSource ret = kidsMap.get(name);
 		if( ret == null ) {
-			WeakReference<MemoryFileSource> ref = placeholders.get(name);
+			WeakReference<MemoryFileSource> ref = placeholders().get(name);
 			if( ref != null ) {
 				ret = ref.get();
 				if( ret == null ) {
-					placeholders.remove(name);
+					placeholders().remove(name);
 				}
 			}
 		}
@@ -145,7 +152,7 @@ public class MemoryFileSource implements FileSource {
 		if( shouldRetain() ) {
 			if( parent.kidsMap.get(name) != this ) {
 				parent.kidsMap.put(name, this);
-				parent.placeholders.remove(name);
+				parent.placeholders().remove(name);
 				parent.updateRetention();
 			}
 		} else if( parent.kidsMap.get(name) == this ) {
@@ -156,17 +163,17 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	private void addPlaceholder(MemoryFileSource kid) {
-		placeholders.put(kid.getName(), new WeakReference<>(kid));
-		if( placeholders.size() > placeholderPurgeAt ) {
-			placeholders.values().removeIf(r -> r.get() == null);
-			placeholderPurgeAt = Math.max(64, placeholders.size() * 2);
+		placeholders().put(kid.getName(), new WeakReference<>(kid));
+		if( placeholders().size() > placeholderPurgeAt ) {
+			placeholders().values().removeIf(r -> r.get() == null);
+			placeholderPurgeAt = Math.max(64, placeholders().size() * 2);
 		}
 	}
 
 	/** Live placeholder children (for moving them on rename). */
 	private List<MemoryFileSource> livePlaceholders() {
 		List<MemoryFileSource> ret = new ArrayList<>();
-		for(WeakReference<MemoryFileSource> ref : placeholders.values()) {
+		for(WeakReference<MemoryFileSource> ref : placeholders().values()) {
 			MemoryFileSource kid = ref.get();
 			if( kid != null ) {
 				ret.add(kid);
@@ -528,7 +535,7 @@ public class MemoryFileSource implements FileSource {
 						kid.clearPathCache();
 						newFile.addPlaceholder(kid);
 					}
-					placeholders.clear();
+					placeholders().clear();
 
 					data = null;
 					linkedTo = null;

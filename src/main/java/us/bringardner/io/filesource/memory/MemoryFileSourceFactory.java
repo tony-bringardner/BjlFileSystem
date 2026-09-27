@@ -52,7 +52,8 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 
 	private static final long serialVersionUID = 1L;
 
-	private static class Link implements InvocationHandler {
+	private static class Link implements InvocationHandler, java.io.Serializable {
+		private static final long serialVersionUID = 1L;
 
 		@SuppressWarnings("unused")
 		boolean hardLink = true;

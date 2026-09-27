@@ -1,6 +1,8 @@
 package us.bringardner.io.filesource;
 
-public class FileSourcePrinciple {
+public class FileSourcePrinciple implements java.io.Serializable {
+	private static final long serialVersionUID = 1L;
+
 	private int id;
 	private String name="UnKnown";
 	
