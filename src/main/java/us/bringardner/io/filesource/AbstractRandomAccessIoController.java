@@ -108,9 +108,21 @@ public abstract class AbstractRandomAccessIoController implements IRandomAccessI
 	}
 
 
+	/** Length of the stored file, or -1 when it must be re-read. */
+	private long fileLength = -1;
+
+	/**
+	 * The stored file's length is read once and again only after this
+	 * controller changes it (save/setLength). It used to refresh the file on
+	 * every call, which for a remote factory is a round trip per call.
+	 * Changes made to the file by someone else while it is open aren't seen.
+	 */
 	public long length() throws IOException {
-		file.refresh();
-		long ret = file.length();		
+		if( fileLength < 0 ) {
+			file.refresh();
+			fileLength = file.length();
+		}
+		long ret = fileLength;		
 		if(currentChunk !=null && currentChunk.isNew) {
 			if( maxWriteOffset>=0) {
 				ret += maxWriteOffset+1;
@@ -271,6 +283,7 @@ public abstract class AbstractRandomAccessIoController implements IRandomAccessI
 					}
 				}
 				writeChunk(currentChunk);
+				fileLength = -1;   // the stored file may have grown
 			}
 			currentChunk.isDirty = false;
 			currentChunk.isNew = false;
@@ -286,6 +299,7 @@ public abstract class AbstractRandomAccessIoController implements IRandomAccessI
 			save();
 		}
 		setLength0(newLength);
+		fileLength = -1;
 		// force reload of next chunk
 		currentChunk = null;
 	}

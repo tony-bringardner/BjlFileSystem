@@ -215,9 +215,8 @@ public class FileSourceURLConnction extends URLConnection {
 				throw new MalformedURLException(FileSourceFactory.QUERY_STRING_SOURCE_TYPE+" is not defined int the query string. ("+tmp+")");
 			}
 			
-			FileSourceFactory factory = FileSourceFactory.getFileSourceFactory(type);
-			
-			if( factory == null ){
+			// (this used to create a factory here just to check, then another in getFileSource)
+			if( !FileSourceFactory.isRegisteredFactory(type) ){
 				throw new MalformedURLException(FileSourceFactory.QUERY_STRING_SOURCE_TYPE+" or "+ type +" does not exist.");
 			}
 			

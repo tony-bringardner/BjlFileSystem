@@ -50,6 +50,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.Collections;
 
 import us.bringardner.core.BaseObject;
 import us.bringardner.core.util.LogHelper;
@@ -329,23 +333,45 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 
 
 
+	/** type id (trimmed, lower case) -> factory class, in ServiceLoader order. Built once. */
+	private static volatile Map<String, Class<? extends FileSourceFactory>> registry;
+
+	private static Map<String, Class<? extends FileSourceFactory>> registry() {
+		Map<String, Class<? extends FileSourceFactory>> ret = registry;
+		if( ret == null ) {
+			synchronized (FileSourceFactory.class) {
+				ret = registry;
+				if( ret == null ) {
+					ret = new LinkedHashMap<>();
+					for (FileSourceFactory fsf : factoryLoader) {
+						ret.putIfAbsent(fsf.getTypeId().trim().toLowerCase(), fsf.getClass());
+					}
+					registry = ret = Collections.unmodifiableMap(ret);
+				}
+			}
+		}
+		return ret;
+	}
+
+	/** @return true if a factory with this type id is registered */
+	public static boolean isRegisteredFactory(String factory_id) {
+		return factory_id != null && registry().containsKey(factory_id.trim().toLowerCase());
+	}
+
+	/**
+	 * Create a new factory for the given type id, or null if there is none.
+	 * (This used to iterate the ServiceLoader -- which isn't thread-safe --
+	 * on every call.)
+	 */
 	public static FileSourceFactory getFileSourceFactory(String factory_id){
 		FileSourceFactory ret = null;
-		FileSourceFactory dummy = null;
 		if( factory_id  != null ) {
 			factory_id = factory_id.trim().toLowerCase();
-
-			for (FileSourceFactory fsf : factoryLoader) {
-				if( fsf.getTypeId().trim().toLowerCase().equals(factory_id)) {
-					dummy = fsf;
-					break;
-				}
-			}				
-
-			if( dummy != null ) {
+			Class<? extends FileSourceFactory> cls = registry().get(factory_id);
+			if( cls != null ) {
 				try {
-					ret = dummy.getClass().getDeclaredConstructor().newInstance();
-					logger.logInfo("Created "+ret.getClass()+" as "+factory_id);
+					ret = cls.getDeclaredConstructor().newInstance();
+					logger.logDebug("Created "+ret.getClass()+" as "+factory_id);
 				} catch (Exception e) {
 					logger.logError("Can't create factory for "+factory_id,e);				
 				}
@@ -377,9 +403,13 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 
 	public static String [] getRegisterdFactories() {
 		List<String> ret = new ArrayList<String>();
-		for (FileSourceFactory fsf : factoryLoader) {
-			ret.add(fsf.getTypeId());
-		}				
+		for (Class<? extends FileSourceFactory> cls : registry().values()) {
+			try {
+				ret.add(cls.getDeclaredConstructor().newInstance().getTypeId());
+			} catch (ReflectiveOperationException e) {
+				logger.logError("Can't create factory "+cls.getName(), e);
+			}
+		}
 
 		return ret.toArray(new String[ret.size()]);
 	}
@@ -581,6 +611,22 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	 * Create a Stream for this URL String
 	 * @see java.net.URLStreamHandlerFactory#createURLStreamHandler(java.lang.String)
 	 */
+	private static final Map<String, Optional<Class<?>>> handlerClasses = new ConcurrentHashMap<>();
+
+	private static Optional<Class<?>> findHandlerClass(String pkgs, String protocol) {
+		for (String pkg : pkgs.split("[|]")) {
+			try {
+				Class<?> cls = Class.forName(String.format("%s.%s.Handler", pkg, protocol));
+				if( URLStreamHandler.class.isAssignableFrom(cls)) {
+					return Optional.of(cls);
+				}
+			} catch(ClassNotFoundException e) {
+				// no handler in this package; try the next one
+			}
+		}
+		return Optional.empty();
+	}
+
 	public URLStreamHandler createURLStreamHandler(String protocol) {
 		URLStreamHandler ret = null;
 		if( protocol.equals(FileSourceFactory.FILE_SOURCE_PROTOCOL)) {
@@ -590,15 +636,14 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 
 			String pkgs = System.getProperty(FileSourceFactory.PROP_JAVA_PROTOCOL_HANDLER_PKGS);
 			if( pkgs != null) {
-				String parts[] = pkgs.split("[|]");
-				for (int idx = 0; idx < parts.length; idx++) {
-					String className = String.format("%s.%s.Handler",parts[idx],protocol);
+				// Look the class up once per (packages, protocol); it used to
+				// call Class.forName for every package on every call.
+				Optional<Class<?>> cls = handlerClasses.computeIfAbsent(pkgs+"#"+protocol, k -> findHandlerClass(pkgs, protocol));
+				if( cls.isPresent()) {
 					try {
-						Class<?> cls = Class.forName(className);
-						ret = (URLStreamHandler) cls.getDeclaredConstructor().newInstance();
-						break;
-					} catch(ReflectiveOperationException | ClassCastException e) {
-						// no handler in this package; try the next one
+						ret = (URLStreamHandler) cls.get().getDeclaredConstructor().newInstance();
+					} catch(ReflectiveOperationException e) {
+						logger.logError("Can't create "+cls.get().getName(), e);
 					}
 				}
 			}			
@@ -702,55 +747,79 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	 */
 	public abstract String getURL();
 
+	/** The user running this JVM, looked up once (it can't change). */
+	private static volatile FileSourceUser localUser;
+
+	/**
+	 * The user running this JVM. Factories for remote systems may override
+	 * this to return the remote user.
+	 * (The lookup runs an external command. It used to be cached per factory
+	 * instance, so every new factory -- e.g. each MemoryFileSourceFactory --
+	 * started a process on its first permission check.)
+	 */
 	public FileSourceUser whoAmI() {
-
-
 		if( localPrinciple == null ) {
+			// a copy: FileSourceUser is mutable (e.g. MemoryFileSource.setGroup changes its owner)
+			FileSourceUser shared = lookupLocalUser();
+			FileSourceUser mine = new FileSourceUser();
+			mine.setId(shared.getId());
+			mine.setName(shared.getName());
+			mine.setGroup(shared.getGroup());
+			mine.setGroups(shared.getGroups());
+			localPrinciple = mine;
+		}
+		return localPrinciple;
+	}
+
+	private static FileSourceUser lookupLocalUser() {
+		FileSourceUser user = localUser;
+		if( user != null ) {
+			return user;
+		}
+		synchronized (FileSourceFactory.class) {
+			if( localUser != null ) {
+				return localUser;
+			}
+			user = null;
+
 			//*nix, including macOS,  system use id
 			String [] command = {"id"};
-
 			if( isWindows() ) {
 				// CSV without headers: parsed by column position, so it doesn't
 				// depend on the (localized) labels the list format uses
-				String tmp []  = {"whoami","/user","/groups","/fo","csv","/nh"};
-				command = tmp;
-			} 
+				command = new String[] {"whoami","/user","/groups","/fo","csv","/nh"};
+			}
 
 			try {
 				// Reads output while the command runs (waiting first could deadlock)
 				ProcessRunner.Result result = ProcessRunner.run(command);
-
 				if( result.exitCode == 0 ) {
-					FileSourceUser tmp = FileSourceUser.fromId(result.stdout);
-					if( tmp != null ) {
-						localPrinciple = tmp;
-					}
+					user = FileSourceUser.fromId(result.stdout);
 				} else {
 					throw new IOException(result.stderr);
 				}
-				
 			} catch (IOException e) {
 				logger.logError("Can't identify the current user with "+String.join(" ", command)+"; falling back to user.name", e);
 			}
-			if( localPrinciple == null ) {
-				localPrinciple = new FileSourceUser();
-				UserPrincipalLookupService svr = FileSystems.getDefault().getUserPrincipalLookupService();
-				UserPrincipal user;
+
+			if( user == null ) {
+				user = new FileSourceUser();
 				// was System.getProperty("user"), which doesn't exist (null)
 				String name = System.getProperty("user.name");
-				localPrinciple.setName(name == null ? "UnKnown" : name);
+				user.setName(name == null ? "UnKnown" : name);
 				try {
-					user = name == null ? null : svr.lookupPrincipalByName(name);
-					if( user !=null ) {
-						localPrinciple.setName(user.getName());
+					UserPrincipalLookupService svr = FileSystems.getDefault().getUserPrincipalLookupService();
+					UserPrincipal principal = name == null ? null : svr.lookupPrincipalByName(name);
+					if( principal !=null ) {
+						user.setName(principal.getName());
 					}
 				} catch (IOException e) {
 					logger.logError("Can't look up user "+name, e);
 				}
-
 			}
-		}
 
-		return localPrinciple;
+			localUser = user;
+			return user;
+		}
 	}
 }
