@@ -42,7 +42,9 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 
 	public MemoryRandomAccessIoController(MemoryFileSource file) {
 		this.file = file;
-		this.data = file.getData();		
+		byte[] current = file.getData();
+		// A file that doesn't exist yet has no data (opening it "rw" creates it).
+		this.data = current == null ? new byte[0] : current;
 		this.size = data.length;
 	}
 
@@ -87,7 +89,11 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 		if( closed ) {
 			throw new IOException("Already closed");
 		}
-		ensureCapacity((int)pos);
+		if( pos >= SOFT_MAX_ARRAY_LENGTH ) {
+			throw new IOException("Files larger that "+SOFT_MAX_ARRAY_LENGTH+" are not supported");
+		}
+		// Need room for index pos, i.e. pos+1 bytes (writing at EOF used to fail).
+		ensureCapacity((int)pos + 1);
 		data[(int)pos] = (byte) b;
 		// Remember... the array is zero based so the size is one more that the highest write
 		size = Math.max(size, (int)pos+1);

@@ -108,6 +108,24 @@ public class MemoryFileSource implements FileSource {
 		return kidsMap.get(name);
 	}
 
+	/** True if this file is 'ancestor' or is somewhere below it. */
+	private boolean isDescendantOf(MemoryFileSource ancestor) {
+		for(MemoryFileSource f = this; f != null; f = f.parent) {
+			if( f == ancestor ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Forget the cached path of this file and everything below it (after a move). */
+	private void clearPathCache() {
+		cananicalPath = null;
+		for(MemoryFileSource kid : kidsMap.values()) {
+			kid.clearPathCache();
+		}
+	}
+
 	public FileType getFileType() {
 		return fileType;
 	}
@@ -169,7 +187,20 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#createNewFile()
 	 */
 	public boolean createNewFile() throws IOException {
-		return false;
+		// Same contract as java.io.File.createNewFile(): false if it already
+		// exists, IOException if the parent directory doesn't exist.
+		if( exists() ) {
+			return false;
+		}
+		if( parent == null || !parent.isDirectory() ) {
+			throw new IOException("No such file or directory: "+getParent());
+		}
+		data = new byte[0];
+		fileType = FileType.File;
+		canOwnerRead = canOwnerWrite = true;
+		deleted = false;
+		lastModified = lastAccessed = createDate = System.currentTimeMillis();
+		return true;
 	}
 
 	/* (non-Javadoc)
@@ -362,18 +393,39 @@ public class MemoryFileSource implements FileSource {
 				MemoryFileSource newFile = (MemoryFileSource) dest;
 				if( !newFile.exists() && 
 						!equals(newFile) &&
-						!newFile.isRoot ) {
+						!newFile.isRoot &&
+						!newFile.isDescendantOf(this) ) {
 
 					newFile.data= data;
 					newFile.canOwnerRead = canOwnerRead;
 					newFile.canOwnerWrite = canOwnerWrite;
+					newFile.canExecute = canExecute;
+					newFile.canGroupRead = canGroupRead;
+					newFile.canGroupWrite = canGroupWrite;
+					newFile.canGroupExecute = canGroupExecute;
+					newFile.canOtherRead = canOtherRead;
+					newFile.canOtherWrite = canOtherWrite;
+					newFile.canOtherExecute = canOtherExecute;
 					newFile.fileType = fileType;
 					newFile.group = group;
 					newFile.lastModified = lastModified;
+					newFile.lastAccessed = lastAccessed;
+					newFile.createDate = createDate;
 					newFile.owner = owner;
+					newFile.linkedTo = linkedTo;
 					newFile.isRoot = isRoot;
+					newFile.deleted = false;
 
+					// Move the children too (previously a renamed directory lost them).
+					for(MemoryFileSource kid : kidsMap.values()) {
+						kid.parent = newFile;
+						kid.clearPathCache();
+						newFile.kidsMap.put(kid.getName(), kid);
+					}
+					kidsMap.clear();
 
+					data = null;
+					linkedTo = null;
 					fileType = FileType.Undefined;
 					canOwnerRead = canOwnerWrite = false;
 					ret = true;
@@ -575,13 +627,15 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.filesource.FileSource#list()
 	 */
 	public String[] list() {
-		String ret [] = new String[kidsMap.size()];
-		int idx=0;
-		for (String n : kidsMap.keySet()) {
-			ret[idx] = n;
+		// Only list children that exist (same set as listFiles()).
+		ArrayList<String> ret = new ArrayList<String>();
+		for (MemoryFileSource kid : kidsMap.values()) {
+			if( kid.fileType != FileType.Undefined) {
+				ret.add(kid.getName());
+			}
 		}
 
-		return ret; 
+		return ret.toArray(new String[ret.size()]); 
 	}
 
 	/* (non-Javadoc)
