@@ -710,7 +710,9 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 			String [] command = {"id"};
 
 			if( isWindows() ) {
-				String tmp []  = {"whoami","/user","/groups","/fo","list"};
+				// CSV without headers: parsed by column position, so it doesn't
+				// depend on the (localized) labels the list format uses
+				String tmp []  = {"whoami","/user","/groups","/fo","csv","/nh"};
 				command = tmp;
 			} 
 
@@ -728,22 +730,22 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 				}
 				
 			} catch (IOException e) {
-				e.printStackTrace();
+				logger.logError("Can't identify the current user with "+String.join(" ", command)+"; falling back to user.name", e);
 			}
 			if( localPrinciple == null ) {
 				localPrinciple = new FileSourceUser();
 				UserPrincipalLookupService svr = FileSystems.getDefault().getUserPrincipalLookupService();
 				UserPrincipal user;
+				// was System.getProperty("user"), which doesn't exist (null)
+				String name = System.getProperty("user.name");
+				localPrinciple.setName(name == null ? "UnKnown" : name);
 				try {
-					user = svr.lookupPrincipalByName(System.getProperty("user"));
+					user = name == null ? null : svr.lookupPrincipalByName(name);
 					if( user !=null ) {
 						localPrinciple.setName(user.getName());
-					} else {
-						localPrinciple.setName("UnKnown");
 					}
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					logger.logError("Can't look up user "+name, e);
 				}
 
 			}

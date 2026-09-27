@@ -87,6 +87,18 @@ public class FileProxyFactory extends FileSourceFactory {
 	 */
 	public FileSource[] listRoots() throws IOException {
 
+		if( isWindows() ) {
+			// Drives come and go (USB sticks, network drives, VeraCrypt ...), so
+			// don't cache the list on Windows. (It used to be computed once.)
+			List<FileProxy> list = new ArrayList<FileProxy>();
+			for(File drive : File.listRoots()) {
+				if (drive.exists() && drive.isDirectory() ) {
+					list.add(new FileProxy(drive,this));
+				}
+			}
+			return list.toArray(new FileSource[list.size()]);
+		}
+
 		if(roots == null ) {
 			synchronized(FileSourceFactory.class) {
 				if(roots == null) {

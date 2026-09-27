@@ -9,6 +9,9 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class FileSourceUser extends FileSourcePrinciple implements UserPrincipal {
+
+	private static final long serialVersionUID = 1L;
+	private static final us.bringardner.core.util.LogHelper logger = new us.bringardner.core.util.LogHelper(FileSourceUser.class);
 	
 	
 	Map<Integer,FileSourceGroup> groups = new TreeMap<>();
@@ -40,67 +43,63 @@ Logon hours allowed          All
 Local Group Memberships      *Administrators       *Remote Desktop Users
                              *Users
 	 */
+	/**
+	 * Look up a user and their groups: `id name` on macOS/Linux (this used to
+	 * run the non-existent command "id ???", so it always failed there) and
+	 * `net user name` on Windows.
+	 * Note: the `net user` output is parsed by its English labels, so group
+	 * membership isn't found on localized Windows.
+	 * @return the user, or null if the lookup failed
+	 */
 	public static FileSourceUser findUser(String userName) {
 		FileSourceUser ret = null;
-			//*nix, including macOS,  system use id
-			String [] command = {"id ???"};
-
-			if(FileSourceFactory. isWindows() ) {
-				int idx = userName.indexOf('\\');
-				if( idx > 0 ) {
-					userName = userName.substring(idx+1);
-				}
-				
-				String tmp []  = {"net","user",userName};
-				command = tmp;
-			} 
-
-			try {
-				// Reads output while the command runs (waiting first could deadlock)
-				ProcessRunner.Result result = ProcessRunner.run(command);
-				StringBuilder out = new StringBuilder(result.stdout);
-				out.append(result.stderr);
-				int status = result.exitCode;
-
-				if( status == 0 ) {
-					ret = new FileSourceUser(0, userName);
-					String text = out.toString();
-					int idx = text.indexOf("Local Group Memberships");
-					if( idx > 0 ) {
-						text = text.substring(idx+23);
-						idx = text.indexOf("Global Group memberships");
-						if( idx > 0 ) {
-							text = text.substring(0,idx).trim();
-						}
-						String group=null;
-						idx = text.indexOf('*');
-						while( idx >= 0 ) {
-							int idx2 = text.indexOf('*',idx+1);
-							if( idx2 >=0) {
-								group = text.substring(idx+1,idx2).trim();							
-							} else {
-								group = text.substring(idx+1).trim();
-							}
-							FileSourceGroup g=null;
-							int id = windowsGroups.indexOf(group);
-							if( id < 0 ) {
-								id = windowsGroups.size();
-								windowsGroups.add(group);							
-							} 
-							
-							g = new FileSourceGroup(id, group);
-							ret.addGroup(g);
-							
-							idx = idx2;
-						}
-					}
-					
-				} 
-			} catch (IOException e) {
-				e.printStackTrace();
+		try {
+			if( !FileSourceFactory.isWindows() ) {
+				ProcessRunner.Result result = ProcessRunner.run("id", userName);
+				return result.exitCode == 0 ? fromUnixId(result.stdout.trim()) : null;
 			}
-	
-			return ret;
+
+			int idx = userName.indexOf('\\');
+			if( idx > 0 ) {
+				userName = userName.substring(idx+1);
+			}
+
+			// Reads output while the command runs (waiting first could deadlock)
+			ProcessRunner.Result result = ProcessRunner.run("net","user",userName);
+			StringBuilder out = new StringBuilder(result.stdout);
+			out.append(result.stderr);
+			int status = result.exitCode;
+
+			if( status == 0 ) {
+				ret = new FileSourceUser(0, userName);
+				String text = out.toString();
+				idx = text.indexOf("Local Group Memberships");
+				if( idx > 0 ) {
+					text = text.substring(idx+23);
+					idx = text.indexOf("Global Group memberships");
+					if( idx > 0 ) {
+						text = text.substring(0,idx).trim();
+					}
+					String group=null;
+					idx = text.indexOf('*');
+					while( idx >= 0 ) {
+						int idx2 = text.indexOf('*',idx+1);
+						if( idx2 >=0) {
+							group = text.substring(idx+1,idx2).trim();							
+						} else {
+							group = text.substring(idx+1).trim();
+						}
+						ret.addGroup(new FileSourceGroup(windowsGroupId(group), group));
+						idx = idx2;
+					}
+				}
+			} 
+		} catch (IOException e) {
+			logger.logError("Can't look up user "+userName, e);
+			return null;
+		}
+
+		return ret;
 	}
 	
 	
@@ -179,9 +178,88 @@ Local Group Memberships      *Administrators       *Remote Desktop Users
 	
 	public static FileSourceUser fromId(String idResponse) {
 		if(FileSourceFactory.isWindows()) {
+			if( idResponse != null && idResponse.trim().startsWith("\"") ) {
+				return fromWindowsCsv(idResponse);
+			}
 			return fromWindowsId(idResponse);
 		} else {
 			return fromUnixId(idResponse);
+		}
+	}
+
+	/**
+	 * Parse `whoami /user /groups /fo csv /nh`. Unlike the /fo list output
+	 * (parsed by fromWindowsId), this doesn't depend on the English labels
+	 * "User Name:" / "Group Name:", so it works on localized Windows:
+	 * user rows have 2 columns ("DOMAIN\\user","SID"), group rows have 4
+	 * ("DOMAIN\\group","type","SID","attributes"). Integrity-level
+	 * entries (SID S-1-16-*) are skipped.
+	 */
+	public static FileSourceUser fromWindowsCsv(String csv) {
+		FileSourceUser ret = null;
+		if( csv == null ) {
+			return null;
+		}
+		for(String line : csv.split("\\r?\\n")) {
+			List<String> cols = parseCsvLine(line.trim());
+			if( cols.size() == 2 && cols.get(1).startsWith("S-1-") && ret == null ) {
+				ret = new FileSourceUser(0, stripDomain(cols.get(0)));
+			} else if( cols.size() >= 4 && ret != null && cols.get(2).startsWith("S-1-") && !cols.get(2).startsWith("S-1-16-") ) {
+				String name = stripDomain(cols.get(0));
+				ret.addGroup(new FileSourceGroup(windowsGroupId(name), name));
+			}
+		}
+		return ret;
+	}
+
+	private static String stripDomain(String name) {
+		int idx = name.lastIndexOf('\\');
+		return idx >= 0 ? name.substring(idx+1).trim() : name.trim();
+	}
+
+	/** Split one CSV line with double-quoted fields ("" is an escaped quote). */
+	private static List<String> parseCsvLine(String line) {
+		List<String> ret = new ArrayList<>();
+		if( line.isEmpty() ) {
+			return ret;
+		}
+		StringBuilder cur = new StringBuilder();
+		boolean quoted = false;
+		for(int i = 0; i < line.length(); i++) {
+			char c = line.charAt(i);
+			if( quoted ) {
+				if( c == '"' ) {
+					if( i+1 < line.length() && line.charAt(i+1) == '"' ) {
+						cur.append('"');
+						i++;
+					} else {
+						quoted = false;
+					}
+				} else {
+					cur.append(c);
+				}
+			} else if( c == '"' ) {
+				quoted = true;
+			} else if( c == ',' ) {
+				ret.add(cur.toString());
+				cur.setLength(0);
+			} else {
+				cur.append(c);
+			}
+		}
+		ret.add(cur.toString());
+		return ret;
+	}
+
+	/** Stable small ids for Windows group names (Windows groups have SIDs, not numeric ids). */
+	private static int windowsGroupId(String name) {
+		synchronized (windowsGroups) {
+			int id = windowsGroups.indexOf(name);
+			if( id < 0 ) {
+				id = windowsGroups.size();
+				windowsGroups.add(name);
+			}
+			return id;
 		}
 	}
 	
@@ -199,7 +277,7 @@ Type:       Well-known group
 SID:        S-1-1-0
 Attributes: Mandatory group, Enabled by default, Enabled group
 	 */
-	private static List<String> windowsGroups = new ArrayList<>();
+	private static final List<String> windowsGroups = new ArrayList<>();
 	
 	private static FileSourceUser fromWindowsId(String idResponse) {
 		String lines [] = idResponse.split("\n");
@@ -225,15 +303,7 @@ Attributes: Mandatory group, Enabled by default, Enabled group
 							name = name.substring(idx+1);							
 						}
 						
-						FileSourceGroup g=null;
-						int id = windowsGroups.indexOf(name);
-						if( id < 0 ) {
-							id = windowsGroups.size();
-							windowsGroups.add(name);							
-						} 
-						
-						g = new FileSourceGroup(id, name);
-						ret.addGroup(g);
+						ret.addGroup(new FileSourceGroup(windowsGroupId(name), name));
 						
 					}
 

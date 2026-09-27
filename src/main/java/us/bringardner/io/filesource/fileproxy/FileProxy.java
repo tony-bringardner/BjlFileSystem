@@ -815,7 +815,9 @@ public class FileProxy implements FileSource {
 	public UserPrincipal getOwner() throws IOException {
 		if(owner == null ) {
 			synchronized (this) {
-				owner = Files.getOwner(target.toPath());	
+				if( owner == null ) {
+					owner = Files.getOwner(target.toPath());	
+				}
 			}
 		}
 
@@ -921,7 +923,9 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public void refresh() {
-		// Nothing to do for local files
+		// The owner and group are cached; forget them so they're re-read
+		owner = null;
+		group = null;
 
 	}
 
@@ -1096,7 +1100,11 @@ public class FileProxy implements FileSource {
 
 	@Override
 	public boolean setGroup(GroupPrincipal group) throws IOException {
-		return permissions().setGroup(group);
+		try {
+			return permissions().setGroup(group);
+		} finally {
+			this.group = null;   // cached value is stale now (it was never cleared)
+		}
 	}
 
 	@Override
@@ -1106,7 +1114,9 @@ public class FileProxy implements FileSource {
 			v.setOwner(owner);
 		} catch (Exception e) {
 			return false;
-		}				
+		} finally {
+			this.owner = null;   // cached value is stale now (it was never cleared)
+		}
 		return true;
 	}
 
