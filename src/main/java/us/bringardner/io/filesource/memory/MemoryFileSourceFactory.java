@@ -240,10 +240,13 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 	@Override
 	public void setConnectionProperties(URL url) {
 		
-			String tmp = url.getQuery();			
-			String [] q = tmp.split(",");
+			String tmp = url.getQuery();
+			if( tmp == null ) {
+				return;
+			}
+			String [] q = tmp.split("[&,]");
 			for (int idx = 0; idx < q.length; idx++) {				
-				String [] q2 = q[idx].split("=");
+				String [] q2 = q[idx].split("=", 2);
 				if( q2.length==2 && PROP_NAME.equals(q2[0])) {
 					name = q2[1];
 				}	

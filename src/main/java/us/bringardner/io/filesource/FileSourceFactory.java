@@ -44,6 +44,7 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -152,17 +153,30 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 
 		//  Make sure this is set
 		//-Djava.protocol.handler.pkgs=us.bringardner.io
-		String pkgs = getAllHandlerPkgs();
 		String tmp = System.getProperty(PROP_JAVA_PROTOCOL_HANDLER_PKGS);
-		if( tmp != null ) {
-			tmp = tmp+"|"+pkgs;
-		} else {
-			tmp = pkgs;
+		for(String pkg : getAllHandlerPkgs().split("[|]")) {
+			if( tmp == null || tmp.isEmpty() ) {
+				tmp = pkg;
+			} else if( !Arrays.asList(tmp.split("[|]")).contains(pkg) ) {
+				tmp = tmp+"|"+pkg;
+			}
 		}
 
 		System.setProperty(PROP_JAVA_PROTOCOL_HANDLER_PKGS, tmp);
-		URL.setURLStreamHandlerFactory(fileProxyFactory);
 		logger.logInfo("Set handlers to "+tmp);
+
+		// A JVM allows only one URLStreamHandlerFactory. If something else
+		// (an app server, Spring Boot, another library) already installed one,
+		// setURLStreamHandlerFactory throws an Error; letting that escape this
+		// static block made the class unusable (NoClassDefFoundError) for the
+		// life of the JVM. Our URLs still resolve through the
+		// java.protocol.handler.pkgs property set above.
+		try {
+			URL.setURLStreamHandlerFactory(fileProxyFactory);
+		} catch (Error | SecurityException e) {
+			logger.logInfo("A URLStreamHandlerFactory is already installed ("+e.getMessage()
+					+ "); using "+PROP_JAVA_PROTOCOL_HANDLER_PKGS+" for FileSource URLs");
+		}
 		// register some basic types
 		types = new HashMap<String, String>();
 		types.put("htm","text/html");
@@ -186,9 +200,19 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 
 
 
+	/**
+	 * Package prefixes for java.protocol.handler.pkgs, '|' separated.
+	 * The JDK looks for &lt;prefix&gt;.&lt;protocol&gt;.Handler, so
+	 * "us.bringardner.io" finds us.bringardner.io.filesource.Handler (filesource:)
+	 * and "us.bringardner.io.filesource" finds the per-factory handlers such as
+	 * us.bringardner.io.filesource.memory.Handler (memory:).
+	 * (This used to return Package.toString(), i.e. "package us.bringardner.io.filesource",
+	 * which the JDK could never use.)
+	 */
 	public static String getAllHandlerPkgs() {
-		String tmp = FileSourceFactory.class.getPackage().toString();
-		return tmp;
+		String pkg = FileSourceFactory.class.getPackage().getName();   // us.bringardner.io.filesource
+		String parent = pkg.substring(0, pkg.lastIndexOf('.'));         // us.bringardner.io
+		return parent+"|"+pkg;
 	}
 
 	/*

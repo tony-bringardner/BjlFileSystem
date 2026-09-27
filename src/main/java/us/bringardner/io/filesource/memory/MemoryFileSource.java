@@ -571,7 +571,19 @@ public class MemoryFileSource implements FileSource {
 		} catch (IOException e) {
 			throw new MalformedURLException("Can't get path");
 		}
-		ret = new URL(FileSourceFactory.FILE_SOURCE_PROTOCOL+":"+path+"?"+FileSourceFactory.QUERY_STRING_SOURCE_TYPE+"="+MemoryFileSourceFactory.FACTORY_ID);
+		// Include the factory's session id: without it, resolving the URL
+		// created a brand-new, empty memory file system.
+		MemoryFileSourceFactory factory = (MemoryFileSourceFactory) getFileSourceFactory();
+		if( factory.getSessionId() < 0 ) {
+			try {
+				factory.connect();   // registers the session
+			} catch (IOException e) {
+				throw new MalformedURLException("Can't register memory file system session: "+e);
+			}
+		}
+		ret = new URL(FileSourceFactory.FILE_SOURCE_PROTOCOL+":"+path
+				+"?"+FileSourceFactory.QUERY_STRING_SOURCE_TYPE+"="+MemoryFileSourceFactory.FACTORY_ID
+				+"&"+FileSourceFactory.QUERY_STRING_SESSION_ID+"="+factory.getSessionId());
 
 		return ret;
 	}

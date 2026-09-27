@@ -177,7 +177,7 @@ public class FileSourceURLConnction extends URLConnection {
 				return;
 			} 
 			
-			String parts[] = tmp.split("&");
+			String parts[] = tmp.split("[&,]");
 			
 			logger.logDebug("parts.len = "+parts.length);
 			
@@ -188,7 +188,7 @@ public class FileSourceURLConnction extends URLConnection {
 			String type = null;
 			
 			for (int idx = 0; type==null && idx < parts.length; idx++) {
-				String pt [] = parts[idx].split("=");
+				String pt [] = parts[idx].split("=", 2);
 				if(pt.length == 2 && pt[0].toLowerCase().equals(FileSourceFactory.QUERY_STRING_SOURCE_TYPE)) {
 					type = pt[1];
 				}				

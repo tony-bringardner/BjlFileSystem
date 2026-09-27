@@ -191,9 +191,10 @@ public class FileSourceUri  {
 		queryParts.clear();
 		if( query != null ) {
 			List<String[]> list = new ArrayList<String[]>();
-			String p1 [] =  query.split("[,]");
+			// '&' is the standard separator; ',' is still accepted for older URLs.
+			String p1 [] =  query.split("[&,]");
 			for(String s : p1) {
-				String [] p2 = s.split("[=]");
+				String [] p2 = s.split("[=]", 2);
 				if( p2.length>1) {
 					list.add(p2);
 				}
