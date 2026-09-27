@@ -229,25 +229,16 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * @throws IOException 
 	 */
 	default byte[] head(int size) throws IOException {
-		int len = (int) length();
-		byte [] ret = new byte[len < size ? len : size];
-		InputStream in = getInputStream();
-		try {
-			int got = in.read(ret);
-			while(got >=0 && got < ret.length) {
-				int icnt = in.read(ret, got, len-got);
-				if( icnt < 0 ) {
-					break;
-				} else {
-					got += icnt;
-				}
+		int want = (int) Math.max(0, Math.min((long) size, length()));
+		byte [] ret = new byte[want];
+		int got = 0;
+		if( want > 0 ) {
+			try (InputStream in = getInputStream()) {
+				got = readUpTo(in, ret);
 			}
-		} finally {
-			try {in.close();} catch (Exception e) {}
 		}
-
-
-		return ret;
+		// If the file shrank while we were reading, don't return trailing zeros.
+		return got == ret.length ? ret : java.util.Arrays.copyOf(ret, got);
 	}
 
 	/**
@@ -256,37 +247,60 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * 	without transferring any other data across the network  
 	 * 
 	 * @param size
-	 * @return
+	 * @return the last min(size, length()) bytes of the file
 	 * @throws IOException 
 	 */
 	default byte[] tail(int size) throws IOException {
-		byte[] ret = new byte[0];
 		long len = length();
-		if( len > 0 ) {
-			InputStream in = getInputStream();
-			try {
-
-				long skip = len-size;
-				if( skip >=0) {
-					//in.skipNBytes(skip);
-					in.skip(skip);
-				}
-				ret = new byte[size];
-
-				int got = in.read(ret);
-				while( got >=0 && got < size) {
-					int cnt = in.read(ret, got, size-got);
-					if( cnt < 0 ) {
-						break;
-					}
-					got += cnt;
-				}
-			} finally {
-				try {in.close();} catch (Exception e) {}
-			} 
+		int want = (int) Math.max(0, Math.min((long) size, len));
+		byte [] ret = new byte[want];
+		int got = 0;
+		if( want > 0 ) {
+			try (InputStream in = getInputStream()) {
+				skipFully(in, len - want);
+				got = readUpTo(in, ret);
+			}
 		}
+		return got == ret.length ? ret : java.util.Arrays.copyOf(ret, got);
+	}
 
-		return ret;
+	/**
+	 * Read until 'buf' is full or the stream ends.
+	 * InputStream.read may return fewer bytes than requested, so loop.
+	 * @return the number of bytes read
+	 */
+	private static int readUpTo(InputStream in, byte[] buf) throws IOException {
+		int got = 0;
+		while( got < buf.length ) {
+			int cnt = in.read(buf, got, buf.length - got);
+			if( cnt < 0 ) {
+				break;
+			}
+			got += cnt;
+		}
+		return got;
+	}
+
+	/**
+	 * Skip exactly n bytes (or to EOF). InputStream.skip may skip fewer
+	 * bytes than requested, or none, so fall back to reading.
+	 */
+	private static void skipFully(InputStream in, long n) throws IOException {
+		byte [] discard = null;
+		while( n > 0 ) {
+			long skipped = in.skip(n);
+			if( skipped <= 0 ) {
+				if( discard == null ) {
+					discard = new byte[(int) Math.min(8192, n)];
+				}
+				int cnt = in.read(discard, 0, (int) Math.min(discard.length, n));
+				if( cnt < 0 ) {
+					return;
+				}
+				skipped = cnt;
+			}
+			n -= skipped;
+		}
 	}
 
 
