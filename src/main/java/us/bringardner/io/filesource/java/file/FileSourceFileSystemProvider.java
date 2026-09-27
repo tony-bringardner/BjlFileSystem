@@ -35,10 +35,12 @@ import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessMode;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.CopyOption;
 import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.DirectoryStream.Filter;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.LinkOption;
@@ -579,17 +581,11 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 	public void copy(Path source, Path target, CopyOption... options) throws IOException {
 		validate(source,target);
 
-		boolean copyAttributes = false;
-		for(CopyOption co : options) {
-			if (co instanceof StandardCopyOption) {
-				StandardCopyOption sco = (StandardCopyOption) co;
-				if( sco == StandardCopyOption.ATOMIC_MOVE) {
-					throw new UnsupportedOperationException("Atomic move is not supported");
-				} else if( co == StandardCopyOption.COPY_ATTRIBUTES) {
-					copyAttributes = true;
-				}
-			}
+		if( hasOption(options, StandardCopyOption.ATOMIC_MOVE)) {
+			throw new UnsupportedOperationException("Atomic move is not supported");
 		}
+		boolean copyAttributes = hasOption(options, StandardCopyOption.COPY_ATTRIBUTES);
+		boolean replaceExisting = hasOption(options, StandardCopyOption.REPLACE_EXISTING);
 
 		/*
 		 *  By default, the copy fails if the target file already exists or is a symbolic link, except if the source and target are the same file, 
@@ -599,12 +595,14 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 			return;
 		}
 
-		FileSource tf = ((FileSourcePath)target).getFileSource();
-		if( tf.exists() || tf.getLinkedTo() != null) {
-			throw new IOException("Can't copy because target exists or is a symbolic link. target="+tf);
+		FileSource sf = ((FileSourcePath)source).getFileSource();
+		if( !sf.exists()) {
+			throw new NoSuchFileException(source.toString());
 		}
 
-		FileSource sf = ((FileSourcePath)source).getFileSource();
+		FileSource tf = ((FileSourcePath)target).getFileSource();
+		prepareTarget(tf, target, replaceExisting);
+
 		if( sf.isDirectory()) {
 			if(!tf.mkdirs()) {
 				throw new IOException("Can't create directories for target="+tf);
@@ -625,7 +623,8 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		}
 
 		if( copyAttributes ) {
-			tf.setLastModifiedTime(tf.lastModified());
+			// was tf.lastModified(), which copied the target's own time onto itself
+			tf.setLastModifiedTime(sf.lastModified());
 			tf.setLastAccessTime(sf.lastAccessTime());
 			tf.setCreateTime(sf.creationTime());
 		}
@@ -643,13 +642,68 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 
 
+	/**
+	 * Move or rename a file. As in Files.move, a symbolic link is moved
+	 * itself, not the file it points to.
+	 * 
+	 * (This used to cast the CopyOption[] to LinkOption[], so every call
+	 * threw ClassCastException, even with no options.)
+	 */
 	@Override
 	public void move(Path source, Path target, CopyOption... options) throws IOException {
 		validate(source,target);
-		FileSource s = getLinkedTo(source, (LinkOption[]) options);
+		if( hasOption(options, StandardCopyOption.ATOMIC_MOVE)) {
+			throw new AtomicMoveNotSupportedException(source.toString(), target.toString(), "Atomic move is not supported");
+		}
 
-		if(!(s.renameTo(((FileSourcePath)target).getFileSource()))) {
+		if( isSameFile(source, target)) {
+			return;
+		}
+
+		FileSource s = ((FileSourcePath)source).getFileSource();
+		if( !s.exists() && s.getLinkedTo() == null) {
+			throw new NoSuchFileException(source.toString());
+		}
+
+		FileSource t = ((FileSourcePath)target).getFileSource();
+		prepareTarget(t, target, hasOption(options, StandardCopyOption.REPLACE_EXISTING));
+
+		if(!(s.renameTo(t))) {
 			throw new IOException("Could not rename "+source+" to "+ target);
+		}
+	}
+
+	private static boolean hasOption(CopyOption[] options, CopyOption option) {
+		if( options != null ) {
+			for(CopyOption o : options) {
+				if( o == option ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Make sure the copy/move target is free. If it already exists (or is a
+	 * symbolic link) that's an error unless REPLACE_EXISTING was given, in
+	 * which case it is deleted first (only an empty directory can be replaced).
+	 */
+	private static void prepareTarget(FileSource tf, Path target, boolean replaceExisting) throws IOException {
+		if( !tf.exists() && tf.getLinkedTo() == null) {
+			return;
+		}
+		if( !replaceExisting ) {
+			throw new FileAlreadyExistsException(target.toString());
+		}
+		if( tf.isDirectory() && tf.getLinkedTo() == null) {
+			FileSource [] kids = tf.listFiles();
+			if( kids != null && kids.length > 0) {
+				throw new DirectoryNotEmptyException(target.toString());
+			}
+		}
+		if( !tf.delete()) {
+			throw new IOException("Could not replace "+target);
 		}
 	}
 
