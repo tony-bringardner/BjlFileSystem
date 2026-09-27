@@ -3,7 +3,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>us.bringardner</groupId>
-	<version>0.1.1</version>
+	<version>0.1.2</version>
 	
 	<artifactId>bjl_file_system</artifactId>
 	<properties>
@@ -102,12 +102,12 @@
 		<dependency>
 			<groupId>us.bringardner</groupId>
 			<artifactId>bjl_core</artifactId>
-			<version>0.1.1</version>
+			<version>0.1.2</version>
 		</dependency>
 		<dependency>
 			<groupId>us.bringardner</groupId>
 			<artifactId>bjl_io</artifactId>
-			<version>0.1.1</version>
+			<version>0.1.2</version>
 		</dependency>
 		
 		<dependency>
