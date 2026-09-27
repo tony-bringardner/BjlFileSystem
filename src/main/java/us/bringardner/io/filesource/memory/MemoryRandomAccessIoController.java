@@ -2,6 +2,7 @@ package us.bringardner.io.filesource.memory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.IRandomAccessIoController;
@@ -145,6 +146,42 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 	    }
 
 	@Override
+	public synchronized int read(long pos, byte[] b, int off, int len) throws IOException {
+		if( closed ) {
+			throw new IOException("Already closed");
+		}
+		Objects.checkFromIndexSize(off, len, b.length);
+		if( len == 0 ) {
+			return 0;
+		}
+		if( pos >= size ) {
+			return -1;
+		}
+		int n = (int) Math.min(len, size - pos);
+		System.arraycopy(data, (int) pos, b, off, n);
+		return n;
+	}
+
+	@Override
+	public synchronized void write(long pos, byte[] b, int off, int len) throws IOException {
+		if( closed ) {
+			throw new IOException("Already closed");
+		}
+		Objects.checkFromIndexSize(off, len, b.length);
+		if( len == 0 ) {
+			return;
+		}
+		long end = pos + len;
+		if( end >= SOFT_MAX_ARRAY_LENGTH ) {
+			throw new IOException("Files larger that "+SOFT_MAX_ARRAY_LENGTH+" are not supported");
+		}
+		ensureCapacity((int) end);
+		System.arraycopy(b, off, data, (int) pos, len);
+		size = Math.max(size, (int) end);
+		isDirty = true;
+	}
+
+	@Override
 	public long length() throws IOException {
 		return size;
 	}
@@ -161,11 +198,7 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 	@Override
 	public void save() throws IOException {
 		if( isDirty) {
-			byte ret[] = new byte[size];
-			for (int idx = 0; idx < ret.length; idx++) {
-				ret[idx] = data[idx];
-			}
-			file.setData(ret);
+			file.setData(Arrays.copyOf(data, size));
 			isDirty = false;
 		}
 	}

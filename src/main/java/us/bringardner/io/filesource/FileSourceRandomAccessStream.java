@@ -21,6 +21,41 @@ public class FileSourceRandomAccessStream extends AbstractRandomAccessStream {
 
 	
 
+	/**
+	 * Bulk read through the controller. (AbstractRandomAccessStream's version
+	 * calls read() once per byte, which for a local file meant a seek and a
+	 * read system call per byte.)
+	 */
+	@Override
+	public int readBytes(byte[] b, int off, int len) throws IOException {
+		if( closed ) {
+			throw new IOException("Can't read closed");
+		}
+		java.util.Objects.checkFromIndexSize(off, len, b.length);
+		if( len == 0 ) {
+			return 0;
+		}
+		int ret = io.read(pointer, b, off, len);
+		if( ret > 0 ) {
+			pointer += ret;
+		}
+		return ret;
+	}
+
+	/** Bulk write through the controller (see readBytes). */
+	@Override
+	public void writeBytes(byte[] b, int off, int len) throws IOException {
+		if( readOnly) {
+			throw new IOException("Can't write in read only mode");
+		}
+		if( closed ) {
+			throw new IOException("Can't write closed");
+		}
+		java.util.Objects.checkFromIndexSize(off, len, b.length);
+		io.write(pointer, b, off, len);
+		pointer += len;
+	}
+
 	@Override
 	public int read() throws IOException {
 		if( closed ) {

@@ -156,6 +156,36 @@ public abstract class AbstractRandomAccessIoController implements IRandomAccessI
 		return ret;
 	}
 
+	/**
+	 * Bulk read: reads the first byte through read(long) (which loads the
+	 * right chunk and handles new/dirty chunks), then copies the rest of the
+	 * loaded chunk in one go.
+	 */
+	@Override
+	public int read(long pos, byte[] b, int off, int len) throws IOException {
+		java.util.Objects.checkFromIndexSize(off, len, b.length);
+		if( len == 0 ) {
+			return 0;
+		}
+		int total = 0;
+		while( total < len ) {
+			int first = read(pos + total);
+			if( first < 0 ) {
+				break;
+			}
+			b[off + total++] = (byte) first;
+			Chunk chunk = currentChunk;
+			if( total < len && chunk != null && !chunk.isNew && chunk.contains(pos + total) ) {
+				int offset = (int) (pos + total - chunk.start);
+				int n = Math.min(chunk.data.length - offset, len - total);
+				System.arraycopy(chunk.data, offset, b, off + total, n);
+				total += n;
+				lastReadPosition = pos + total - 1;
+			}
+		}
+		return total == 0 ? -1 : total;
+	}
+
 	public void write(long pos, byte value) throws IOException {
 		if(pos<0) {
 			throw new IOException("Negative position");
@@ -236,10 +266,7 @@ public abstract class AbstractRandomAccessIoController implements IRandomAccessI
 					//  the offset is 0 based					
 					int size = maxWriteOffset+1;
 					if( size < currentChunk.data.length) {
-						byte [] tmp = new byte[size];
-						for (int idx = 0; idx < tmp.length; idx++) {
-							tmp[idx] = currentChunk.data[idx];
-						}
+						byte [] tmp = java.util.Arrays.copyOf(currentChunk.data, size);
 						currentChunk.data = tmp;
 						currentChunk.size = tmp.length;
 					}
