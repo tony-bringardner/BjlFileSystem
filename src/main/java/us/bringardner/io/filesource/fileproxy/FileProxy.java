@@ -523,13 +523,17 @@ public class FileProxy implements FileSource {
 		return target.getParent();
 	}
 
+	/**
+	 * True if child is this file or below it. (A plain startsWith used to
+	 * treat /x/ab as a child of /x/a.)
+	 */
 	public boolean isChildOfMine(FileSource child) {
 		boolean ret = (child instanceof FileProxy);
 		if( ret ){
 			String p1 = child.getAbsolutePath();
 			String p2 = getAbsolutePath();
-			ret = p1.startsWith(p2);
-
+			String prefix = p2.endsWith(File.separator) ? p2 : p2+File.separator;
+			ret = p1.equals(p2) || p1.startsWith(prefix);
 		}
 
 		return ret;

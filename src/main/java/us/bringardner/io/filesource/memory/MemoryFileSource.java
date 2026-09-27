@@ -387,14 +387,17 @@ public class MemoryFileSource implements FileSource {
 		return parent == null ? null:parent.getName();		
 	}
 
+	/**
+	 * True if child is this file or below it. (A plain startsWith used to
+	 * treat /x/ab as a child of /x/a.)
+	 */
 	public boolean isChildOfMine(FileSource child) {
 		boolean ret = (child instanceof MemoryFileSource);
 		if( ret ){
-			try {
-				ret = child.getCanonicalPath().startsWith(getCanonicalPath());
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			String p1 = child.getAbsolutePath();
+			String p2 = getAbsolutePath();
+			String prefix = p2.endsWith("/") ? p2 : p2+"/";
+			ret = p1.equals(p2) || p1.startsWith(prefix);
 		}
 
 		return ret;

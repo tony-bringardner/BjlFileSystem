@@ -125,7 +125,10 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 				continue;
 			}
 			if( name.equals("..")) {
-				expanded.remove(expanded.size()-1);
+				// ".." at the root stays at the root (it used to throw IndexOutOfBoundsException)
+				if( !expanded.isEmpty() && !expanded.get(expanded.size()-1).isEmpty() ) {
+					expanded.remove(expanded.size()-1);
+				}
 
 			} else if(name.equals(".")) {
 				if( idx1 == 0 && !path.startsWith(".")) {
@@ -280,7 +283,7 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 	public FileSource createFileSource(String fullPath) throws IOException {
 		String expand = expandDots(fullPath);
 
-		if(fullPath.equals("/")) {
+		if(fullPath.equals("/") || expand.isEmpty() || expand.equals("/")) {
 			return roots[0];
 		}
 		MemoryFileSource ret = null;

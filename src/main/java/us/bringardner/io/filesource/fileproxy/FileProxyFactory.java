@@ -34,6 +34,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -168,18 +169,21 @@ public class FileProxyFactory extends FileSourceFactory {
 	@Override
 	public FileSource createFileSource(String fullPath) throws IOException {
 
-		boolean abs = fullPath.startsWith("/");
-		if( isWindows()) {
-			abs = fullPath.length()>1 && Character.isAlphabetic(fullPath.charAt(0)) && fullPath.charAt(1) == ':';
-		}
-		
+		// java.io.File decides what's absolute on this OS; on Windows that
+		// includes UNC paths (\\server\share), which used to be treated as relative.
 		File file = new File(fullPath);
 		String realPath = fullPath;
 		
-		if( !abs) {
+		if( !file.isAbsolute()) {
 			FileSource cwd = getCurrentDirectory();			
 			if( cwd != null ) {
-				file = new File(((FileProxy) cwd).target,fullPath);
+				// Path.resolve also handles Windows root-relative paths (\foo -> C:\foo),
+				// which new File(cwd, "\foo") got wrong.
+				try {
+					file = ((FileProxy) cwd).target.toPath().resolve(fullPath).toFile();
+				} catch (InvalidPathException e) {
+					throw new IOException("Invalid path: "+fullPath, e);
+				}
 				realPath = file.getAbsolutePath();
 			}
 		}
