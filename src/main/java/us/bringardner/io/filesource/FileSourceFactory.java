@@ -32,7 +32,6 @@ package us.bringardner.io.filesource;
 import java.awt.Component;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.Serializable;
 import java.lang.ref.WeakReference;
 import java.net.URI;
@@ -711,33 +710,17 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 				command = tmp;
 			} 
 
-			ProcessBuilder builder = new ProcessBuilder(command);
-			Process process;
 			try {
-				process = builder.start();
-				int status = -1;
-				try {
-					status = process.waitFor();
-				} catch (InterruptedException e) {
-				}
+				// Reads output while the command runs (waiting first could deadlock)
+				ProcessRunner.Result result = ProcessRunner.run(command);
 
-				String out = "";
-				try (InputStream reader = process.getInputStream()) {
-					out = new String(reader.readAllBytes());
-				}
-
-				String err = "";
-				try (InputStream reader = process.getErrorStream()) {
-					err = new String(reader.readAllBytes());
-				}
-
-				if( status == 0 ) {
-					FileSourceUser tmp = FileSourceUser.fromId(out.toString());
+				if( result.exitCode == 0 ) {
+					FileSourceUser tmp = FileSourceUser.fromId(result.stdout);
 					if( tmp != null ) {
 						localPrinciple = tmp;
 					}
 				} else {
-					throw new IOException(err);
+					throw new IOException(result.stderr);
 				}
 				
 			} catch (IOException e) {

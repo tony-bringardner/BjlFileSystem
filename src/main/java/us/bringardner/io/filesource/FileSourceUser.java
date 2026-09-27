@@ -1,8 +1,6 @@
 package us.bringardner.io.filesource;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
@@ -57,32 +55,12 @@ Local Group Memberships      *Administrators       *Remote Desktop Users
 				command = tmp;
 			} 
 
-			ProcessBuilder builder = new ProcessBuilder(command);
-			Process process;
 			try {
-				process = builder.start();
-				int status = -1;
-				try {
-					status = process.waitFor();
-				} catch (InterruptedException e) {
-				}
-
-				StringBuilder out = new StringBuilder();
-				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-					String line = null;
-					while ((line = reader.readLine()) != null) {
-						out.append(line);
-						out.append("\n");
-					}					
-				}
-
-				try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-					String line = null;
-					while ((line = reader.readLine()) != null) {
-						out.append(line);
-						out.append("\n");
-					}					
-				}
+				// Reads output while the command runs (waiting first could deadlock)
+				ProcessRunner.Result result = ProcessRunner.run(command);
+				StringBuilder out = new StringBuilder(result.stdout);
+				out.append(result.stderr);
+				int status = result.exitCode;
 
 				if( status == 0 ) {
 					ret = new FileSourceUser(0, userName);
