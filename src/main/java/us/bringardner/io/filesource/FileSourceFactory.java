@@ -53,7 +53,6 @@ import java.util.ServiceLoader;
 
 import us.bringardner.core.BaseObject;
 import us.bringardner.core.util.LogHelper;
-import us.bringardner.io.filesource.fileproxy.FileProxy;
 import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
 
 /**
@@ -253,7 +252,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	/*
 	 * Create a FileSource identified by the URL given by 'url'
 	 */
-	@SuppressWarnings("deprecation")
+	
 	public static FileSource getFileSource(String url) throws IOException {
 		return getFileSource(new URL(url));
 	}

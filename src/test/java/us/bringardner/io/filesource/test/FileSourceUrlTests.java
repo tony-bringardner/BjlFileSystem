@@ -7,13 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URL;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +29,7 @@ import us.bringardner.io.filesource.memory.MemoryFileSourceFactory;
  */
 public class FileSourceUrlTests {
 
-	/** #13: '&' separated query parameters weren't recognised (only ','). */
+	/** #13: '&' separated query parameters weren't recognized (only ','). */
 	@Test
 	public void queryParsingAcceptsAmpersandAndComma() throws Exception {
 		FileSourceUri amp = new FileSourceUri(new URI("filesource:/x?sourcetype=memory&sessionId=5&name=a=b"));
