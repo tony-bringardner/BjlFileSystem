@@ -100,7 +100,7 @@ public class FileSourceFileSystem extends FileSystem {
 	public String getSeparator() {
 		String ret = File.separator;
 		if( factory != null ) {
-			ret = ""+factory.getPathSeperatorChar();
+			ret = ""+factory.getSeperatorChar();   // was getPathSeperatorChar() (':' or ';')
 		}
 		
 		return ret;

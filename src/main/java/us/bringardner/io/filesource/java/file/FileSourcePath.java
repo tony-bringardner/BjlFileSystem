@@ -26,6 +26,7 @@
 package us.bringardner.io.filesource.java.file;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.FileSystem;
@@ -59,7 +60,8 @@ public class FileSourcePath implements Path {
 	private FileSource file;
 	private FileSourceUri fsuri;
 	private FileSystem fileSystem;
-	private static Pattern windows = Pattern.compile("^[a-z][:]*");
+	/** A Windows drive root such as C:\ or C:/ */
+	private static final Pattern DRIVE_ROOT = Pattern.compile("^[A-Za-z]:[\\\\/]");
 
 
 
@@ -110,26 +112,37 @@ public class FileSourcePath implements Path {
 		return fileSystem;
 	}
 
-	@Override
-	public boolean isAbsolute() {
-		boolean ret = rawPath.length()>0 && rawPath.charAt(0)==factory.getPathSeperatorChar();
-		if( !ret) {
-			Matcher mm = windows.matcher(rawPath);
-			ret = mm.matches();
+	/**
+	 * The root component of rawPath ("/", "C:\", "\\"), or null if it has none.
+	 */
+	private String rootString() {
+		Matcher m = DRIVE_ROOT.matcher(rawPath);
+		if( m.find() ) {
+			return rawPath.substring(0, 2)+factory.getSeperatorChar();
 		}
-
-		return ret;
+		char sep = factory.getSeperatorChar();
+		if( rawPath.length() > 0 && rawPath.charAt(0) == sep ) {
+			return ""+sep;
+		}
+		return null;
 	}
 
+	/**
+	 * (This compared the first character with getPathSeperatorChar() -- the ':'
+	 * or ';' that separates entries in a path list -- instead of the name
+	 * separator, so absolute paths reported false; and the Windows pattern
+	 * only matched strings like "c" or "c:".)
+	 */
+	@Override
+	public boolean isAbsolute() {
+		return rootString() != null;
+	}
+
+	/** The root, or null for a relative path (it used to return the first name). */
 	@Override
 	public Path getRoot() {
-		char sep = factory.getSeperatorChar();
-		if( rawPath.charAt(0) == sep) {
-			return new FileSourcePath(""+sep,factory);
-		}
-
-		String root = split()[0];
-		return new FileSourcePath(root, factory);
+		String root = rootString();
+		return root == null ? null : new FileSourcePath(root, factory);
 	}
 
 	@Override
@@ -153,14 +166,32 @@ public class FileSourcePath implements Path {
 	}
 
 
+	/**
+	 * The parent, or null if there is none (a root, or a single relative name).
+	 * It used to return the path itself for "/" and for "/name", so loops that
+	 * walk up until getParent() is null never ended.
+	 */
 	@Override
 	public Path getParent() {
-		String ret = rawPath;
-		int idx = rawPath.lastIndexOf(factory.getSeperatorChar());
-		if( idx> 0 ) {
-			ret = ret.substring(0,idx);
+		char sep = factory.getSeperatorChar();
+		String root = rootString();
+		String path = rawPath;
+		// ignore a trailing separator (but not the root's)
+		while( path.length() > 1 && path.charAt(path.length()-1) == sep && (root == null || path.length() > root.length()) ) {
+			path = path.substring(0, path.length()-1);
 		}
-		return new FileSourcePath(ret,factory);
+		if( root != null && path.length() <= root.length() ) {
+			return null;   // the root itself
+		}
+		int idx = path.lastIndexOf(sep);
+		if( idx < 0 ) {
+			return null;   // single relative name
+		}
+		String parent = path.substring(0, idx);
+		if( root != null && parent.length() < root.length() ) {
+			parent = root;
+		}
+		return new FileSourcePath(parent, factory);
 	}
 
 	@Override
@@ -223,14 +254,10 @@ public class FileSourcePath implements Path {
 		return ret;
 	}
 
+	/** Returns a new path; Paths are immutable (this used to modify itself). */
 	@Override
 	public Path normalize() {
-		rawPath = normalizeString(rawPath, factory.getSeperatorChar());
-		try {
-			file = factory.createFileSource(rawPath);
-		} catch (IOException e) {
-		}
-		return this;
+		return new FileSourcePath(normalizeString(rawPath, factory.getSeperatorChar()), factory);
 	}
 
 	public Path resolve(String other) {		
@@ -288,27 +315,29 @@ public class FileSourcePath implements Path {
 				return new FileSourcePath("", factory);
 			}
 
-			// can only relativize paths of the same type
-			if (this.isAbsolute() != child.isAbsolute())
-				throw new IllegalArgumentException("'other' is different type of Path");
-
 			// this path is the empty path
 			if (this.rawPath.isEmpty())
 				return child;
 
-
+			// Compare absolute forms. (A relative and an absolute path are
+			// accepted and resolved against the current directory, as they
+			// always effectively were while isAbsolute() returned false.)
 			me = toAbsolutePath().toString();
 			u = child.toAbsolutePath().toString();
 
+			String sep = ""+factory.getSeperatorChar();
 			String tmp = null;
-			if(u.startsWith(me)) {
+			if( u.equals(me) ) {
+				tmp = "";
+			} else if( u.startsWith(me.endsWith(sep) ? me : me+sep) ) {
+				// only a real descendant: "/a/bc" is not under "/a/b"
 				tmp = u.substring(me.length());
+				while( tmp.startsWith(sep)) {
+					tmp = tmp.substring(1);
+				}
 			} else {
+				// not below this path: return it unchanged (".." forms aren't produced)
 				tmp = u;
-			}
-
-			while( tmp.startsWith(""+factory.getSeperatorChar())) {
-				tmp = tmp.substring(1);
 			}
 
 
@@ -324,22 +353,32 @@ public class FileSourcePath implements Path {
 			throw new RuntimeException("No factory");
 		}
 
-		URI ret=null;
-		try {
-			ret = new URI(String.format("filesource:%s?sourcetype=%s",rawPath,factory.getTypeId()));
-		} catch (URISyntaxException e) {
-			e.printStackTrace();
+		// Use '/' in the URI (FileSourcePath(URI) converts back), quote characters
+		// such as spaces (these used to make the URI invalid and toUri() return
+		// null), and include the session id so the URI resolves to this file system.
+		String query = FileSourceFactory.QUERY_STRING_SOURCE_TYPE+"="+factory.getTypeId();
+		if( factory.getSessionId() >= 0 ) {
+			query += "&"+FileSourceFactory.QUERY_STRING_SESSION_ID+"="+factory.getSessionId();
 		}
-
-		return ret;
+		String path = rawPath.replace(factory.getSeperatorChar(), '/');
+		try {
+			return new URI(FileSourceFactory.FILE_SOURCE_PROTOCOL, path+"?"+query, null);
+		} catch (URISyntaxException e) {
+			throw new IllegalArgumentException("Can't make a URI for "+rawPath, e);
+		}
 	}
 
+	/**
+	 * @throws UncheckedIOException if the factory can't create it (this used
+	 *         to return null, which surfaced later as a NullPointerException)
+	 */
 	public FileSource getFileSource() {
 
 		if( file == null ) {
 			try {
 				file = factory.createFileSource(rawPath);
 			} catch (IOException e) {
+				throw new UncheckedIOException("Can't create FileSource for "+rawPath, e);
 			}
 		}
 		return file;
@@ -376,8 +415,7 @@ public class FileSourcePath implements Path {
 			}
 			return new FileSourcePath(ret);
 		} catch (IOException e) {
-			e.printStackTrace();
-			return null;
+			throw e;
 		}
 
 
