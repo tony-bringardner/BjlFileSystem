@@ -267,7 +267,8 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 					// Negative ids have always meant the shared local factory.
 					return fileProxyFactory;
 				}
-			} catch (Exception e) {
+			} catch (NumberFormatException e) {
+				// not a session id; resolve by factory id below
 			}
 		}
 
@@ -595,7 +596,10 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 					try {
 						Class<?> cls = Class.forName(className);
 						ret = (URLStreamHandler) cls.getDeclaredConstructor().newInstance();
-					} catch(Exception e) {}
+						break;
+					} catch(ReflectiveOperationException | ClassCastException e) {
+						// no handler in this package; try the next one
+					}
 				}
 			}			
 		}		

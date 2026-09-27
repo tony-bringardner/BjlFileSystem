@@ -308,7 +308,8 @@ Attributes: Mandatory group, Enabled by default, Enabled group
 				int id = Integer.parseInt(parts[0]);
 				String name = parts[1].trim();
 				return new FileSourcePrinciple(id, name);
-			} catch (Exception e) {
+			} catch (NumberFormatException e) {
+				// not an "id(name)" entry
 			}
 		}
 		

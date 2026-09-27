@@ -57,16 +57,22 @@ public class FileSourceURLConnction extends URLConnection {
 	/**
 	 * @param arg0
 	 */
+	/**
+	 * Doesn't connect: URLConnection connects on first use. (The constructor
+	 * used to connect and log-and-swallow any failure, so getInputStream()
+	 * later failed with a NullPointerException instead of the real error.)
+	 */
 	public FileSourceURLConnction(URL url) {
 		super(url);
+	}
+
+	/** @throws java.io.UncheckedIOException if the URL can't be resolved */
+	public FileSource getTarget() {
 		try {
 			connect();
 		} catch (IOException e) {
-			logger.logError("Can't connect", e);
+			throw new java.io.UncheckedIOException(e);
 		}
-	}
-
-	public FileSource getTarget() {
 		return target;
 	}
 	
@@ -126,37 +132,47 @@ public class FileSourceURLConnction extends URLConnection {
 	public java.io.InputStream getInputStream()
 		throws java.io.IOException
 	{
+		connect();
 		return  target.getInputStream();
 	}
 
-
+	/** -1 if the length can't be determined (as URLConnection specifies). */
+	@Override
 	public int getContentLength()
+	{
+		long len = getContentLengthLong();
+		return len > Integer.MAX_VALUE ? -1 : (int) len;
+	}
 
+	@Override
+	public long getContentLengthLong()
 	{
 		try {
-			return  (int)target.length();
+			connect();
+			return  target.length();
 		} catch (IOException e) {
-			throw new IllegalStateException("Can't get length e="+e);
+			return -1;
 		}
 	}
 
-	
+	/** 0 if unknown (as URLConnection specifies). */
+	@Override
 	public long getLastModified()
-
 	{
 		try {
+			connect();
 			return  target.lastModified();
 		} catch (IOException e) {
-			throw new IllegalStateException("Can't get length e="+e);
+			return 0;
 		}
 	}
 
 	public java.io.OutputStream getOutputStream()
 		throws java.io.IOException
 	{
+		connect();
 		return  target.getOutputStream();
 	}
-
 
 	/* (non-Javadoc)
 	 * @see java.net.URLConnection#connect()
@@ -207,6 +223,7 @@ public class FileSourceURLConnction extends URLConnection {
 			}
 			
 			target = FileSourceFactory.getFileSource(url);
+			connected = true;
 	
 		}
 	}

@@ -33,6 +33,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
@@ -267,6 +268,24 @@ public class MemoryFileSource implements FileSource {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#createNewFile()
 	 */
+	/**
+	 * Same failures as java.io.FileInputStream: a missing file, a directory or
+	 * no read permission is a FileNotFoundException. (Reading a missing file
+	 * used to return an empty stream, and permission problems threw
+	 * IllegalAccessError, which is a java.lang.Error.)
+	 */
+	private void checkReadable() throws IOException {
+		if( !exists() ) {
+			throw new FileNotFoundException(getAbsolutePath()+" (No such file or directory)");
+		}
+		if( isDirectory() ) {
+			throw new FileNotFoundException(getAbsolutePath()+" (Is a directory)");
+		}
+		if( !canRead() ) {
+			throw new FileNotFoundException(getAbsolutePath()+" (Permission denied)");
+		}
+	}
+
 	public boolean createNewFile() throws IOException {
 		// Same contract as java.io.File.createNewFile(): false if it already
 		// exists, IOException if the parent directory doesn't exist.
@@ -431,7 +450,8 @@ public class MemoryFileSource implements FileSource {
 	 */
 	public FileSource[] listFiles(FileSourceFilter filter) throws IOException {
 		if( !canRead() ) {
-			throw new IllegalAccessError("Permission denied");
+			// was IllegalAccessError, a java.lang.Error that callers' catch (Exception) misses
+			throw new AccessDeniedException(getAbsolutePath());
 		}
 		MemoryFileSource [] ret = null;
 		ArrayList<MemoryFileSource> list = new ArrayList<MemoryFileSource>();
@@ -574,17 +594,11 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#getInputStream()
 	 */
 	public InputStream getInputStream() throws IOException {
-		if(fileType != FileType.Undefined &&  !canRead() ) {
-			throw new IllegalAccessError("Permission denied");
+		if( !exists() && linkedTo != null ) {
+			return linkedTo.getInputStream();
 		}
-		if( exists() && fileType==FileType.Directory) {
-			throw new FileNotFoundException();
-		}
-
-		if( data == null ) {
-			data = new byte[0];
-		}
-		ByteArrayInputStream ret = new ByteArrayInputStream(data);
+		checkReadable();
+		ByteArrayInputStream ret = new ByteArrayInputStream(data == null ? new byte[0] : data);
 		lastAccessed = System.currentTimeMillis();
 
 		return ret;
@@ -595,7 +609,7 @@ public class MemoryFileSource implements FileSource {
 	 */
 	public OutputStream getOutputStream() throws FileNotFoundException {
 		if(fileType != FileType.Undefined &&  !canOwnerWrite ) {
-			throw new IllegalAccessError("Permission denied");
+			throw new FileNotFoundException(getAbsolutePath()+" (Permission denied)");
 		}
 		if( exists() && fileType==FileType.Directory) {
 			throw new FileNotFoundException();
@@ -622,7 +636,10 @@ public class MemoryFileSource implements FileSource {
 	 */
 	public OutputStream getOutputStream(boolean append) throws FileNotFoundException {
 		if( exists() && fileType==FileType.Directory) {
-			throw new FileNotFoundException();
+			throw new FileNotFoundException(getAbsolutePath()+" (Is a directory)");
+		}
+		if( fileType != FileType.Undefined && !canOwnerWrite ) {
+			throw new FileNotFoundException(getAbsolutePath()+" (Permission denied)");
 		}
 
 		if( data == null ) {
@@ -861,23 +878,17 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	public InputStream getInputStream(long startingPos) throws IOException {
-		if( !canRead() ) {
-			throw new IllegalAccessError("Permission denied");
+		if( !exists() && linkedTo != null ) {
+			return linkedTo.getInputStream(startingPos);
 		}
-		if( exists() && fileType==FileType.Directory) {
-			throw new FileNotFoundException();
+		// (This used to turn a missing file into an existing, empty one.)
+		checkReadable();
+		if( startingPos < 0 ) {
+			throw new IOException("Negative starting position "+startingPos);
 		}
-
-		ByteArrayInputStream ret = null;
-
-		if( data == null ) {
-			ret = new ByteArrayInputStream(new byte[0]);
-		} else {
-			ret = new ByteArrayInputStream(data,(int)startingPos,data.length);
-		}
-		fileType = FileType.File;
-		canOwnerRead = canOwnerWrite = true;
-		updateRetention();
+		byte[] bytes = data == null ? new byte[0] : data;
+		int start = (int) Math.min(startingPos, bytes.length);
+		ByteArrayInputStream ret = new ByteArrayInputStream(bytes, start, bytes.length - start);
 		lastAccessed = System.currentTimeMillis();
 
 		return ret;
@@ -937,19 +948,18 @@ public class MemoryFileSource implements FileSource {
 
 	@Override
 	public ISeekableInputStream getSeekableInputStream() throws IOException {
-		if( !canRead() ) {
-			throw new IllegalAccessError("Permission denied");
+		if( !exists() && linkedTo != null ) {
+			return linkedTo.getSeekableInputStream();
 		}
-		if( data == null ) {
-			data = new byte[0];
-		}
+		checkReadable();
+		final byte[] snapshot = data == null ? new byte[0] : data;
 
 		final MemoryFileSource owner = this;
 
 		return new ISeekableInputStream() {
 			int filePointer = 0;
 
-			byte [] myData = Arrays.copyOf(owner.data, owner.data.length);
+			byte [] myData = Arrays.copyOf(snapshot, snapshot.length);
 			@Override
 			public void seek(long pos) throws IOException {
 				// Same rules as RandomAccessFile: negative is an error, and seeking

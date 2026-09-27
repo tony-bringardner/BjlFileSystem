@@ -83,67 +83,50 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	 * @throws IOException 
 	 * 
 	 */
-	default public boolean canRead() throws IOException  {		
-		try {
-
-			FileSourceUser me = getFileSourceFactory().whoAmI();
-			if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
-				return canOwnerRead();
-			} else if( me.hasGroup(
-					getGroup().getName()
-					)) {
-				return canGroupRead();
-			} 
-			return canOtherRead();
-		} catch (Exception e) {
+	/**
+	 * Whether the current user can read this file, using the owner, group or
+	 * other permission that applies to them.
+	 * (These defaults used to catch every exception and return false, hiding
+	 * I/O errors; they now propagate IOException and treat a missing owner or
+	 * group as "doesn't match".)
+	 */
+	default public boolean canRead() throws IOException  {
+		switch (accessClass()) {
+		case 0: return canOwnerRead();
+		case 1: return canGroupRead();
+		default: return canOtherRead();
 		}
-		return false;
 	}
 
-	/**
-	 * Tests whether the application can modify the file denoted by this abstract pathname. 
-	 * This is only here for comparability with java.io.File.  
-	 * 
-	 * @return
-	 * @throws IOException 
-	 * 
-	 */
 	default public boolean canWrite() throws IOException {
-		try {
-
-			FileSourceUser me = getFileSourceFactory().whoAmI();
-			if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
-				return canOwnerWrite();
-			} else if( me.hasGroup(getGroup().getName())) {
-				return canGroupWrite();
-			} 
-			return canOtherWrite();
-		} catch (Exception e) {
+		switch (accessClass()) {
+		case 0: return canOwnerWrite();
+		case 1: return canGroupWrite();
+		default: return canOtherWrite();
 		}
-		return false;
 	}
 
-	/**
-	 * Tests whether the application can execute the file denoted by this abstract pathname. 
-	 * This is only here for comparability with java.io.File.  
-	 * 
-	 * @return
-	 * @throws IOException 
-	 * 
-	 */
 	default public boolean canExecute() throws IOException {
-		try {
-
-			FileSourceUser me = getFileSourceFactory().whoAmI();
-			if ( getOwner().getName().equalsIgnoreCase(me.getName())) {
-				return canOwnerExecute();
-			} else if( me.hasGroup(getGroup().getName())) {
-				return canGroupExecute();
-			} 
-			return canOtherExecute();
-		} catch (Exception e) {
+		switch (accessClass()) {
+		case 0: return canOwnerExecute();
+		case 1: return canGroupExecute();
+		default: return canOtherExecute();
 		}
-		return false;
+	}
+
+	/** 0 = the current user owns the file, 1 = is in its group, 2 = other. */
+	private int accessClass() throws IOException {
+		FileSourceUser me = getFileSourceFactory().whoAmI();
+		String myName = me == null ? null : me.getName();
+		UserPrincipal owner = getOwner();
+		if( myName != null && owner != null && myName.equalsIgnoreCase(owner.getName()) ) {
+			return 0;
+		}
+		GroupPrincipal group = getGroup();
+		if( me != null && group != null && group.getName() != null && me.hasGroup(group.getName()) ) {
+			return 1;
+		}
+		return 2;
 	}
 
 	boolean canOwnerRead() throws IOException ;

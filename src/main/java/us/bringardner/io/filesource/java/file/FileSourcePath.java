@@ -297,7 +297,7 @@ public class FileSourcePath implements Path {
 				FileSource file2 = file.getChild(other.toString());
 				return new FileSourcePath(file2);
 			} catch (IOException e) {
-				e.printStackTrace();
+				throw new UncheckedIOException(e);   // was printStackTrace() and return null
 			}			
 		}
 		return null;

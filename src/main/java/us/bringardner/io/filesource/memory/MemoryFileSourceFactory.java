@@ -33,6 +33,7 @@ import java.awt.Component;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.net.URL;
@@ -68,18 +69,20 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 		
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-			Object ret = null;
 			String mname = method.getName();
-			
+			Object target = existing;
 			if(mname.equals("getLinkedTo") && !hardLink) {
-				ret = method.invoke(link, args);	
+				target = link;
 			} else if(mname.equals("getName") || mname.equals("toString") || mname.equals("getCanonicalPath")) {
-				ret = method.invoke(link, args);
-			} else {
-				ret = method.invoke(existing, args);
+				target = link;
 			}
-			 			   
-			return ret;
+			try {
+				return method.invoke(target, args);
+			} catch (InvocationTargetException e) {
+				// Rethrow what the method threw. Without this, an IOException
+				// reached callers as UndeclaredThrowableException.
+				throw e.getCause();
+			}
 		}
 		
 	}
@@ -166,8 +169,7 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 		try {
 			currentDirectory =  createFileSource(file.getCanonicalPath());
 		} catch (IOException e) {
-			// should never happen
-			e.printStackTrace();
+			// can't happen for the memory file system; stay at the root
 		}		
 	}
 

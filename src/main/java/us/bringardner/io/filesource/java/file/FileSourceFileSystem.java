@@ -115,7 +115,7 @@ public class FileSourceFileSystem extends FileSystem {
 					ret.add(new FileSourcePath(f));
 				}
 			} catch (IOException e) {
-				e.printStackTrace();
+				throw new java.io.UncheckedIOException(e);
 			}
 		}
 		return ret;

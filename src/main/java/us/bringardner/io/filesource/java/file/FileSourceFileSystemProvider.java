@@ -441,7 +441,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 				}
 			}
 		}
-		FileSource file = fileOf(path);
+		FileSource file = resolve(path, new LinkOption[0]);
 		checkReadable(file, path);
 		return file.getInputStream();
 	}
@@ -461,6 +461,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		FileSource file = fileOf(path);
 
 		if( !o.write ) {
+			file = resolve(path, new LinkOption[0]);
 			checkReadable(file, path);
 			return new FileSourceChannels.Read(file, o.deleteOnClose);
 		}
