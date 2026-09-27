@@ -139,7 +139,7 @@ public abstract class AbstractRandomAccessIoController implements IRandomAccessI
 
 					int offset = (int)(pos-currentChunk.start);
 					if( offset < (maxWriteOffset+1)) {
-						ret = currentChunk.data[offset];
+						ret = currentChunk.data[offset] & 0xFF;  // unsigned, so bytes >= 0x80 aren't mistaken for EOF
 						lastReadPosition = pos;
 					}				
 				} else {
@@ -147,7 +147,7 @@ public abstract class AbstractRandomAccessIoController implements IRandomAccessI
 				}
 			} else if(currentChunk.contains(pos)) {
 				int offset = (int)(pos-currentChunk.start);
-				ret = currentChunk.data[offset];
+				ret = currentChunk.data[offset] & 0xFF;  // unsigned, so bytes >= 0x80 aren't mistaken for EOF
 				lastReadPosition = pos;
 			} else {
 				throw new IOException("Logic error");
