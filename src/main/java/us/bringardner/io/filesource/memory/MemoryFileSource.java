@@ -652,7 +652,8 @@ public class MemoryFileSource implements FileSource {
 			updateRetention();
 		}
 
-		ByteArrayOutputStream ret = new ByteArrayOutputStream(data.length==0?200:data.length) {
+		// buffer only the appended bytes (it used to be sized to the existing data)
+		ByteArrayOutputStream ret = new ByteArrayOutputStream(256) {
 			@Override
 			public void close() throws IOException {
 				super.close();
@@ -661,13 +662,8 @@ public class MemoryFileSource implements FileSource {
 					if( data.length == 0 ) {
 						data = tmp;
 					} else {
-						byte [] tmp2 = new byte [data.length+tmp.length];
-						for (int idx = 0; idx < data.length; idx++) {
-							tmp2[idx] = data[idx];
-						}
-						for (int idx = 0; idx < tmp.length; idx++) {
-							tmp2[data.length+idx] = tmp[idx];
-						}
+						byte [] tmp2 = Arrays.copyOf(data, data.length+tmp.length);
+						System.arraycopy(tmp, 0, tmp2, data.length, tmp.length);
 						data = tmp2;
 					}
 				}
