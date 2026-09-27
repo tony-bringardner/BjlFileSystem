@@ -181,7 +181,6 @@ public class FileSourceURLConnction extends URLConnection {
 		if( target == null ) {
 			//  Find the target FileSOurce
 			URL url = getURL();
-			System.out.println("url="+url);
 			if( !url.toString().startsWith(FileSourceFactory.FILE_SOURCE_PROTOCOL+":")) {
 				throw new IllegalArgumentException("URL is not a filesource = "+url);
 			}

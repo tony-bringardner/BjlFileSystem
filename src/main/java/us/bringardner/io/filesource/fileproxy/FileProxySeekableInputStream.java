@@ -79,12 +79,41 @@ public class FileProxySeekableInputStream implements ISeekableInputStream {
 
 	@Override
 	public InputStream getInputStream() throws IOException {
+		// Reads through the shared RandomAccessFile, so the position is shared.
+		// (Only read() used to be overridden, so read(byte[]) fell back to one
+		// system call per byte: 10 MB took about 6 s.)
 		return new InputStream() {
-			
+
 			@Override
 			public int read() throws IOException {
 				return ram.read();
 			}
+
+			@Override
+			public int read(byte[] b, int off, int len) throws IOException {
+				return ram.read(b, off, len);
+			}
+
+			@Override
+			public long skip(long n) throws IOException {
+				if( n <= 0 ) {
+					return 0;
+				}
+				long pos = ram.getFilePointer();
+				long newPos = Math.min(ram.length(), pos + n);
+				if( newPos <= pos ) {
+					return 0;
+				}
+				ram.seek(newPos);
+				return newPos - pos;
+			}
+
+			@Override
+			public int available() throws IOException {
+				long left = ram.length() - ram.getFilePointer();
+				return (int) Math.max(0, Math.min(Integer.MAX_VALUE, left));
+			}
+
 			@Override
 			public void close() throws IOException {
 				ram.close();

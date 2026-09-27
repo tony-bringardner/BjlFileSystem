@@ -129,7 +129,6 @@ public abstract class AbstractRandomAccessIoController implements IRandomAccessI
 			if(currentChunk == null || 
 					!currentChunk. contains(pos)) {
 				// find and load data
-				System.out.println("");
 				loadChunkFor(pos);
 
 			}
