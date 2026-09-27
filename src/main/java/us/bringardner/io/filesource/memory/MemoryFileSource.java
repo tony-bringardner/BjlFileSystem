@@ -39,8 +39,11 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.UserPrincipal;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -76,7 +79,15 @@ public class MemoryFileSource implements FileSource {
 	private FileSourceUser owner;
 	private MemoryFileSource parent;
 	FileSource linkedTo;
+	/** Children that exist (or have existing descendants / are links). Held strongly. */
 	private Map<String,MemoryFileSource> kidsMap = new TreeMap<>();
+	/**
+	 * Children that were only looked up (createFileSource on a path that doesn't
+	 * exist). Held weakly so lookups don't grow the tree forever, while anyone
+	 * still holding the object keeps getting the same instance for that path.
+	 */
+	private final Map<String,WeakReference<MemoryFileSource>> placeholders = new HashMap<>();
+	private int placeholderPurgeAt = 64;
 	private boolean canOwnerRead=true;
 	private boolean canOwnerWrite=true;
 	private boolean canExecute=true;
@@ -105,7 +116,63 @@ public class MemoryFileSource implements FileSource {
 	}
 
 	MemoryFileSource getChildByName(String name) {
-		return kidsMap.get(name);
+		MemoryFileSource ret = kidsMap.get(name);
+		if( ret == null ) {
+			WeakReference<MemoryFileSource> ref = placeholders.get(name);
+			if( ref != null ) {
+				ret = ref.get();
+				if( ret == null ) {
+					placeholders.remove(name);
+				}
+			}
+		}
+		return ret;
+	}
+
+	/** A node is kept in its parent's tree only if it exists, is a link, or has kept children. */
+	private boolean shouldRetain() {
+		return parent == null || isRoot || fileType != FileType.Undefined || linkedTo != null || !kidsMap.isEmpty();
+	}
+
+	/**
+	 * Move this node between the parent's strong (kidsMap) and weak (placeholders)
+	 * maps after its state changed, and propagate up the tree.
+	 */
+	void updateRetention() {
+		if( parent == null ) {
+			return;
+		}
+		if( shouldRetain() ) {
+			if( parent.kidsMap.get(name) != this ) {
+				parent.kidsMap.put(name, this);
+				parent.placeholders.remove(name);
+				parent.updateRetention();
+			}
+		} else if( parent.kidsMap.get(name) == this ) {
+			parent.kidsMap.remove(name);
+			parent.addPlaceholder(this);
+			parent.updateRetention();
+		}
+	}
+
+	private void addPlaceholder(MemoryFileSource kid) {
+		placeholders.put(kid.getName(), new WeakReference<>(kid));
+		if( placeholders.size() > placeholderPurgeAt ) {
+			placeholders.values().removeIf(r -> r.get() == null);
+			placeholderPurgeAt = Math.max(64, placeholders.size() * 2);
+		}
+	}
+
+	/** Live placeholder children (for moving them on rename). */
+	private List<MemoryFileSource> livePlaceholders() {
+		List<MemoryFileSource> ret = new ArrayList<>();
+		for(WeakReference<MemoryFileSource> ref : placeholders.values()) {
+			MemoryFileSource kid = ref.get();
+			if( kid != null ) {
+				ret.add(kid);
+			}
+		}
+		return ret;
 	}
 
 	/** True if this file is 'ancestor' or is somewhere below it. */
@@ -122,6 +189,9 @@ public class MemoryFileSource implements FileSource {
 	private void clearPathCache() {
 		cananicalPath = null;
 		for(MemoryFileSource kid : kidsMap.values()) {
+			kid.clearPathCache();
+		}
+		for(MemoryFileSource kid : livePlaceholders()) {
 			kid.clearPathCache();
 		}
 	}
@@ -200,6 +270,7 @@ public class MemoryFileSource implements FileSource {
 		canOwnerRead = canOwnerWrite = true;
 		deleted = false;
 		lastModified = lastAccessed = createDate = System.currentTimeMillis();
+		updateRetention();
 		return true;
 	}
 
@@ -207,10 +278,34 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#delete()
 	 */
 	public boolean delete() {
+		// Same contract as java.io.File.delete(): false if it doesn't exist or
+		// is a directory that isn't empty. (It used to always return true, never
+		// unlinked the node and happily "deleted" non-empty directories.)
+		if( isRoot || parent == null ) {
+			return false;
+		}
+		if( !exists() ) {
+			if( linkedTo == null ) {
+				return false;
+			}
+			linkedTo = null;           // deleting a link removes the link itself
+			updateRetention();
+			return true;
+		}
+		if( isDirectory() ) {
+			for(MemoryFileSource kid : kidsMap.values()) {
+				if( kid.fileType != FileType.Undefined || !kid.kidsMap.isEmpty() ) {
+					return false;   // not empty
+				}
+			}
+			// Only link entries are left (they never show in listFiles()); they go with the directory.
+			kidsMap.clear();
+		}
 		deleted = true;
 		data = null;
 		fileType = FileType.Undefined;
-		return deleted;
+		updateRetention();
+		return true;
 	}
 
 	/* (non-Javadoc)
@@ -360,6 +455,7 @@ public class MemoryFileSource implements FileSource {
 		}
 		fileType = FileType.Directory;
 		canOwnerRead = canOwnerWrite = true;
+		updateRetention();
 
 		return true;
 	}
@@ -423,11 +519,19 @@ public class MemoryFileSource implements FileSource {
 						newFile.kidsMap.put(kid.getName(), kid);
 					}
 					kidsMap.clear();
+					for(MemoryFileSource kid : livePlaceholders()) {
+						kid.parent = newFile;
+						kid.clearPathCache();
+						newFile.addPlaceholder(kid);
+					}
+					placeholders.clear();
 
 					data = null;
 					linkedTo = null;
 					fileType = FileType.Undefined;
 					canOwnerRead = canOwnerWrite = false;
+					newFile.updateRetention();
+					updateRetention();
 					ret = true;
 
 				}
@@ -495,6 +599,7 @@ public class MemoryFileSource implements FileSource {
 		};
 		fileType = FileType.File;
 		canOwnerRead = canOwnerWrite = true;
+		updateRetention();
 		lastAccessed = System.currentTimeMillis();
 		lastModified = System.currentTimeMillis();
 
@@ -513,6 +618,7 @@ public class MemoryFileSource implements FileSource {
 			data = new byte[0];
 			fileType = FileType.File;
 			canOwnerRead = canOwnerWrite = true;
+			updateRetention();
 		}
 
 		ByteArrayOutputStream ret = new ByteArrayOutputStream(data.length==0?200:data.length) {
@@ -760,6 +866,7 @@ public class MemoryFileSource implements FileSource {
 		}
 		fileType = FileType.File;
 		canOwnerRead = canOwnerWrite = true;
+		updateRetention();
 		lastAccessed = System.currentTimeMillis();
 
 		return ret;
@@ -935,7 +1042,8 @@ public class MemoryFileSource implements FileSource {
 
 
 	public void addChild(MemoryFileSource file) {
-		kidsMap.put(file.getName(), file);
+		addPlaceholder(file);
+		file.updateRetention();
 	}
 
 	@Override

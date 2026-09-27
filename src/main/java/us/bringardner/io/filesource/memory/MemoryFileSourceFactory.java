@@ -371,6 +371,7 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 				MemoryFileSource efs = (MemoryFileSource) existing;
 				ret = getProxy(efs, nfs, hardLink);
 				nfs.linkedTo = ret;
+				nfs.updateRetention();
 			}
 		}
 		return ret;
