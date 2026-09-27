@@ -17,5 +17,11 @@ public class FileSourceGroup extends FileSourcePrinciple implements GroupPrincip
 		}
 		return false;
 	}
+
+	@Override
+	public int hashCode() {
+		// equals() compares names, so hash the name
+		return java.util.Objects.hashCode(getName());
+	}
 	
 }

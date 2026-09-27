@@ -385,7 +385,12 @@ public class FileProxy implements FileSource {
 	 * @see java.lang.Comparable#compareTo(java.lang.Object)
 	 */
 	public int compareTo(Object o) {
-		return target.getAbsolutePath().compareTo(o.toString());
+		if (o instanceof FileSource) {
+			int ret = getAbsolutePath().compareTo(((FileSource) o).getAbsolutePath());
+			return ret != 0 ? ret : getClass().getName().compareTo(o.getClass().getName());
+		}
+		// (used to compare against o.toString(), which for a FileProxy can be a relative path)
+		return getAbsolutePath().compareTo(String.valueOf(o));
 	}
 
 
@@ -885,6 +890,12 @@ public class FileProxy implements FileSource {
 			ret = getAbsolutePath().equals(((FileProxy) obj).getAbsolutePath());			
 		}
 		return ret;
+	}
+
+	@Override
+	public int hashCode() {
+		// equals() compares absolute paths, so hash the same thing
+		return getAbsolutePath().hashCode();
 	}
 
 	@Override

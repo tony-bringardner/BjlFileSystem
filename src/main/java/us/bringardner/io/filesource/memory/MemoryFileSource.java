@@ -204,7 +204,11 @@ public class MemoryFileSource implements FileSource {
 	 * @see java.lang.Comparable#compareTo(java.lang.Object)
 	 */
 	public int compareTo(Object o) {
-		return getAbsolutePath().compareTo(o.toString());
+		if (o instanceof FileSource) {
+			int ret = getAbsolutePath().compareTo(((FileSource) o).getAbsolutePath());
+			return ret != 0 ? ret : getClass().getName().compareTo(o.getClass().getName());
+		}
+		return getAbsolutePath().compareTo(String.valueOf(o));
 	}
 
 	
@@ -879,6 +883,12 @@ public class MemoryFileSource implements FileSource {
 			ret = getAbsolutePath().equals(((MemoryFileSource) obj).getAbsolutePath());			
 		}
 		return ret;
+	}
+
+	@Override
+	public int hashCode() {
+		// equals() compares absolute paths, so hash the same thing
+		return getAbsolutePath().hashCode();
 	}
 
 	@Override

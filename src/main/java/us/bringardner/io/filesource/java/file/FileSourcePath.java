@@ -394,16 +394,57 @@ public class FileSourcePath implements Path {
 		return null;
 	}
 
+	/**
+	 * Lexicographic comparison of the path strings, as Path.compareTo requires
+	 * (no file system access). Paths of different factory types are ordered by
+	 * type id. (This used to normalize() -- which modified this path -- and
+	 * compare against the other path made absolute.)
+	 */
 	@Override
 	public int compareTo(Path other) {
-
 		if (!(other instanceof FileSourcePath)) {
-			throw new ProviderMismatchException();			
+			throw new ClassCastException("Not a FileSourcePath: "+other);
 		}
+		FileSourcePath o = (FileSourcePath) other;
+		int ret = typeId().compareTo(o.typeId());
+		return ret != 0 ? ret : rawPath.compareTo(o.rawPath);
+	}
 
-		int	ret = normalize().toString().compareTo(other.toAbsolutePath().toString());
+	private String typeId() {
+		return factory == null ? "" : factory.getTypeId();
+	}
 
-		return ret;
+	/** Same factory instance, or same factory type with the same connection properties. */
+	private boolean sameFileSystem(FileSourcePath o) {
+		if (factory == o.factory) {
+			return true;
+		}
+		if (factory == null || o.factory == null || !typeId().equals(o.typeId())) {
+			return false;
+		}
+		return String.valueOf(factory.getConnectProperties()).equals(String.valueOf(o.factory.getConnectProperties()));
+	}
+
+	/**
+	 * Two paths are equal when they have the same path string on the same
+	 * file system (there used to be no equals at all, so identical paths
+	 * were never equal).
+	 */
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (!(obj instanceof FileSourcePath)) {
+			return false;
+		}
+		FileSourcePath o = (FileSourcePath) obj;
+		return rawPath.equals(o.rawPath) && sameFileSystem(o);
+	}
+
+	@Override
+	public int hashCode() {
+		return 31 * typeId().hashCode() + rawPath.hashCode();
 	}
 
 }
