@@ -23,7 +23,7 @@ The artifacts are published to GitHub Packages:
 <dependency>
     <groupId>us.bringardner</groupId>
     <artifactId>bjl_file_system</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
 </dependency>
 ```
 
