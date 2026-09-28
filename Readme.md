@@ -13,7 +13,7 @@ The syntax deliberately stays close to `java.io.File`, so moving code between th
 ## Requirements
 
 - Java 11 or later
-- BjlCore and BjlIo (pulled in automatically by Maven)
+- [BjlCore](https://github.com/tony-bringardner/BjlCore) and [BjlIo](https://github.com/tony-bringardner/BjlIo) (pulled in automatically by Maven)
 
 ## Installation
 
@@ -85,12 +85,22 @@ All `FileSource` objects are created by a `FileSourceFactory`. Everything else (
 
 ## Implementations
 
+Built in:
+
 | Type id | Class | What it is |
 |---|---|---|
 | `fileproxy` | `FileProxyFactory` / `FileProxy` | Local files, backed by `java.io.File` and `java.nio.file`. The default. |
 | `memory` | `MemoryFileSourceFactory` / `MemoryFileSource` | A virtual file system held in memory. Handy for tests. Thread-safe. |
 
-Other implementations live in their own projects and plug in the same way, including `bjl_file_system_sftp` (BjlFileSystemSftp), `bjl_file_system_ftp` and `bjl_file_system_jdbc` (BjlFileSystemJdbc).
+Separate projects, which plug in the same way once they're on the classpath:
+
+| Project | Artifact | What it is |
+|---|---|---|
+| [BjlFileSystemFtp](https://github.com/tony-bringardner/BjlFileSystemFtp) | `bjl_file_system_ftp` | FTP servers |
+| [BjlFileSystemSftp](https://github.com/tony-bringardner/BjlFileSystemSftp) | `bjl_file_system_sftp` | SSH/SFTP servers |
+| [BjlFileSystemJdbc](https://github.com/tony-bringardner/BjlFileSystemJdbc) | `bjl_file_system_jdbc` | A file system stored in a database, via JDBC |
+
+Each is published to GitHub Packages from its own repository, so add a matching `<repository>` (and `<server>` entry) as in [Installation](#installation).
 
 ### Choosing an implementation at runtime
 
