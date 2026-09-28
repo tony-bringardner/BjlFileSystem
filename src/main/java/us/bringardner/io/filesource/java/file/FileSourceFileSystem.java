@@ -135,20 +135,28 @@ public class FileSourceFileSystem extends FileSystem {
 	}
 
 	@Override
+	/**
+	 * Joins the strings with the separator, as FileSystem.getPath specifies.
+	 * (This used to create a FileSource for the string, which made a relative
+	 * name absolute against the current directory; so e.g.
+	 * path.resolveSibling("x") ended up in the current directory instead of
+	 * next to path.)
+	 */
 	public Path getPath(String first, String... more) {
-		FileSource file=null;
-		try {
-			file = factory.createFileSource(first);
-			if( more !=null) {
-				for(String name: more) {
-					file = file.getChild(name);
-				}						
+		String sep = ""+factory.getSeperatorChar();
+		StringBuilder path = new StringBuilder(first);
+		if( more != null ) {
+			for(String name : more) {
+				if( name == null || name.isEmpty() ) {
+					continue;
+				}
+				if( path.length() > 0 && !path.toString().endsWith(sep) ) {
+					path.append(sep);
+				}
+				path.append(name);
 			}
-		} catch (IOException e) {
-			throw new RuntimeException(e);
 		}
-		
-		return new FileSourcePath(file);
+		return new FileSourcePath(path.toString(), factory);
 	}
 
 	/**
