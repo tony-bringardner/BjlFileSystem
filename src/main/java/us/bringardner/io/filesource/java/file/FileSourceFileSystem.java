@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
@@ -150,10 +151,40 @@ public class FileSourceFileSystem extends FileSystem {
 		return new FileSourcePath(file);
 	}
 
+	/**
+	 * Supports the "glob:" and "regex:" syntaxes, with the same rules as the
+	 * JDK's file systems (see FileSourceGlobs). Paths are matched on their
+	 * string form, so a pattern with no separator matches file names, e.g.
+	 * Files.newDirectoryStream(dir, "*.txt"). Matching is case-insensitive
+	 * when the separator is '\\' (Windows), as on the JDK's Windows file system.
+	 * (This used to throw "Not implemented".)
+	 *
+	 * @throws IllegalArgumentException if there is no "syntax:" prefix
+	 * @throws UnsupportedOperationException for a syntax other than glob or regex
+	 * @throws java.util.regex.PatternSyntaxException if the pattern is invalid
+	 */
 	@Override
 	public PathMatcher getPathMatcher(String syntaxAndPattern) {
-		// Not implemented
-		throw new RuntimeException("Not implimented");
+		int colon = syntaxAndPattern.indexOf(':');
+		if( colon <= 0 ) {
+			throw new IllegalArgumentException("Expected syntax:pattern, got "+syntaxAndPattern);
+		}
+		String syntax = syntaxAndPattern.substring(0, colon);
+		String input = syntaxAndPattern.substring(colon + 1);
+		char sep = factory != null ? factory.getSeperatorChar() : File.separatorChar;
+
+		String regex;
+		if( syntax.equalsIgnoreCase("glob") ) {
+			regex = FileSourceGlobs.toRegex(input, sep);
+		} else if( syntax.equalsIgnoreCase("regex") ) {
+			regex = input;
+		} else {
+			throw new UnsupportedOperationException("Syntax '"+syntax+"' not recognized");
+		}
+
+		int flags = sep == '\\' ? Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE : 0;
+		Pattern pattern = Pattern.compile(regex, flags);
+		return path -> pattern.matcher(path.toString()).matches();
 	}
 
 	@Override
