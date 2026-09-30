@@ -235,6 +235,12 @@ public class FileProxyFactory extends FileSourceFactory {
 
 
 
+	/** java.io.tmpdir, as java.io.File.createTempFile uses. */
+	@Override
+	public FileSource getTempDirectory() throws IOException {
+		return new FileProxy(new File(System.getProperty("java.io.tmpdir")).getCanonicalFile(), this);
+	}
+
 	@Override
 	public FileSource getCurrentDirectory() throws IOException {
 		if( currentDirectory == null ) {

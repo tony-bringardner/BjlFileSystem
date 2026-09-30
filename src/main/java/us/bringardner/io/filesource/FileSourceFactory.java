@@ -302,6 +302,96 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	//get Current Directory
 	public abstract FileSource getCurrentDirectory() throws IOException;
 
+	//
+	// Temporary files (java.io.File.createTempFile)
+	//
+
+	private static final java.security.SecureRandom TEMP_RANDOM = new java.security.SecureRandom();
+
+	/**
+	 * Where createTempFile(prefix, suffix) and createTempDirectory(prefix)
+	 * put their files. By default the current directory; the local file
+	 * system uses java.io.tmpdir and the memory file system /tmp. Remote
+	 * implementations can override this with a server temp directory.
+	 */
+	public FileSource getTempDirectory() throws IOException {
+		return getCurrentDirectory();
+	}
+
+	/** createTempFile(prefix, suffix, null): in getTempDirectory(). */
+	public FileSource createTempFile(String prefix, String suffix) throws IOException {
+		return createTempFile(prefix, suffix, null);
+	}
+
+	/**
+	 * Creates a new, empty file with a unique name, as
+	 * java.io.File.createTempFile does: the name is the prefix, a random
+	 * number and the suffix. Combine with deleteOnExit() to have it removed
+	 * automatically.
+	 * <p>
+	 * Uniqueness relies on createNewFile(), which is atomic for local and
+	 * memory files; on a file system where it checks and then creates (FTP),
+	 * two clients could in principle pick the same random name at once.
+	 *
+	 * @param prefix at least three characters
+	 * @param suffix e.g. ".txt"; null means ".tmp"
+	 * @param directory where to create it (from this factory), or null for getTempDirectory()
+	 * @return the new file
+	 * @throws IllegalArgumentException if the prefix is shorter than three characters, or
+	 *         the directory belongs to another factory
+	 * @throws IOException if the directory doesn't exist, the prefix or suffix contains a
+	 *         path separator, or no unique name could be created
+	 */
+	public FileSource createTempFile(String prefix, String suffix, FileSource directory) throws IOException {
+		if( prefix == null || prefix.length() < 3 ) {
+			throw new IllegalArgumentException("Prefix string \""+prefix+"\" too short: length must be at least 3");
+		}
+		return createTemp(prefix, suffix == null ? ".tmp" : suffix, directory, false);
+	}
+
+	/** createTempDirectory(prefix, null): in getTempDirectory(). */
+	public FileSource createTempDirectory(String prefix) throws IOException {
+		return createTempDirectory(prefix, null);
+	}
+
+	/**
+	 * Creates a new directory with a unique name (the prefix, which may be
+	 * null or empty, and a random number), as
+	 * java.nio.file.Files.createTempDirectory does.
+	 *
+	 * @param directory where to create it (from this factory), or null for getTempDirectory()
+	 */
+	public FileSource createTempDirectory(String prefix, FileSource directory) throws IOException {
+		return createTemp(prefix == null ? "" : prefix, "", directory, true);
+	}
+
+	private FileSource createTemp(String prefix, String suffix, FileSource directory, boolean dir) throws IOException {
+		if( directory == null ) {
+			directory = getTempDirectory();
+			if( !directory.exists() ) {
+				directory.mkdirs();
+			}
+		} else if( directory.getFileSourceFactory() != this ) {
+			throw new IllegalArgumentException(directory.getAbsolutePath()+" belongs to another factory");
+		}
+		if( !directory.isDirectory() ) {
+			throw new IOException("Not a directory: "+directory.getAbsolutePath());
+		}
+		String sep = String.valueOf(getSeperatorChar());
+		if( prefix.contains(sep) || suffix.contains(sep) || prefix.contains("/") || suffix.contains("/") ) {
+			throw new IOException("Unable to create temporary file: prefix and suffix can't contain a path separator");
+		}
+		for(int attempt = 0; attempt < 100; attempt++ ) {
+			String name = prefix + Long.toUnsignedString(TEMP_RANDOM.nextLong()) + suffix;
+			FileSource candidate = directory.getChild(name);
+			boolean created = dir ? (!candidate.exists() && candidate.mkdir()) : candidate.createNewFile();
+			if( created ) {
+				return candidate;
+			}
+		}
+		throw new IOException("Unable to create a unique temporary "+(dir ? "directory" : "file")+" in "+directory.getAbsolutePath());
+	}
+
 	/*
 	 * Create a FileSource identified by 'name' as a sub-directory of 'parent'
 	 */

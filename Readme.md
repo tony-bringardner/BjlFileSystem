@@ -226,9 +226,9 @@ The unit tests in `src/test/java`, starting with `AbstractTestClass`, are the be
 | `new RandomAccessFile(file, mode)` | `file.getRandomAccessStream(mode)` (see [Random access](#random-access)) |
 | `Files.readAllBytes(file.toPath())` | Unchanged |
 | `getTotalSpace()`, `getFreeSpace()`, `getUsableSpace()` | Same names. Real values for local files; 0 where the file system can't tell, which is what `java.io.File` returns in that case |
+| `File.createTempFile(prefix, suffix)`, `File.createTempFile(prefix, suffix, dir)` | `factory.createTempFile(prefix, suffix)`, `factory.createTempFile(prefix, suffix, dir)`; also `factory.createTempDirectory(prefix)`. Without a directory they use `factory.getTempDirectory()`: `java.io.tmpdir` for local files, `/tmp` in memory, the current directory elsewhere unless the implementation overrides it |
 | `file.deleteOnExit()` | Same name. Local files use `java.io.File.deleteOnExit()`. Other files are deleted when their factory disconnects, or at exit if it's still connected then (see [Behaviour worth knowing](#behaviour-worth-knowing)) |
 
-Not available on `FileSource` yet: `File.createTempFile(...)` (for now, create a uniquely named child and call `createNewFile()`).
 
 ### Example
 
@@ -306,6 +306,7 @@ assertEquals(100, totalLogSize(dir));
 - `renameTo` never replaces an existing file: it returns `false` if the destination exists or belongs to another file system, and throws the underlying `IOException` for other failures. Use `Files.move(..., REPLACE_EXISTING)` to replace.
 - In both built-in implementations, reading a file that doesn't exist throws `FileNotFoundException`, like `java.io`.
 - `FileSource` objects are `Serializable` (both built-in implementations support it).
+- `createTempFile` relies on `createNewFile()` to guarantee a unique name. That's atomic for local and memory files; on FTP it checks and then creates, so two clients could in principle pick the same random name at the same moment.
 - `deleteOnExit()` on a non-local file deletes it when its factory's `disConnect()` runs, because that's the last point a remote connection is certainly open; a factory that is never disconnected has its files deleted by a shutdown hook, if it's still connected then. As with `java.io.File`, files are deleted newest registration first, a directory only if it's empty, and failures are ignored. Local files use `java.io.File.deleteOnExit()` and are deleted only at exit.
 
 ## Building and testing

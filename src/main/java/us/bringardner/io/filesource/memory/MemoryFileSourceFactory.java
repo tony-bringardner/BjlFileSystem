@@ -322,6 +322,16 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 
 
 
+	/** /tmp, created when first needed. */
+	@Override
+	public FileSource getTempDirectory() throws IOException {
+		FileSource tmp = createFileSource(getSeperatorChar()+"tmp");
+		if( !tmp.exists() ) {
+			tmp.mkdirs();
+		}
+		return tmp;
+	}
+
 	@Override
 	public FileSource getCurrentDirectory() throws IOException {
 		if( currentDirectory == null ) {
