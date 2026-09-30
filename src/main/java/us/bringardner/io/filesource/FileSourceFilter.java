@@ -35,6 +35,7 @@ import javax.swing.filechooser.FileView;
  * @author Tony Bringardner
  *
  */
+@FunctionalInterface
 public interface FileSourceFilter {
 	
 	
@@ -47,10 +48,17 @@ public interface FileSourceFilter {
     public abstract boolean accept(FileSource f);
 
     /**
-     * The description of this filter. For example: "JPG and GIF Images"
+     * The description of this filter, shown by the file chooser dialog.
+     * For example: "JPG and GIF Images".
+     * <p>
+     * A default method, so a filter can be written as a lambda, e.g.
+     * {@code dir.listFiles(f -> f.getName().endsWith(".log"))}. Override it
+     * when the filter is shown in a chooser.
      *
-     * @return the description of this filter
+     * @return the description of this filter; "Filtered files" by default
      * @see FileView#getName
      */
-    public abstract String getDescription();
+    default String getDescription() {
+        return "Filtered files";
+    }
 }

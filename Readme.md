@@ -210,7 +210,7 @@ The unit tests in `src/test/java`, starting with `AbstractTestClass`, are the be
 | `exists()`, `isFile()`, `isDirectory()`, `isHidden()`, `length()`, `lastModified()` | Same names (they declare `IOException`) |
 | `mkdir()`, `mkdirs()`, `createNewFile()`, `delete()` | Same names |
 | `list()`, `listFiles()` | Same names |
-| `listFiles(FileFilter)`, `list(FilenameFilter)` | `listFiles(FileSourceFilter)`, `list(FileSourceFilter)` (see the example below) |
+| `listFiles(FileFilter)`, `list(FilenameFilter)` | `listFiles(FileSourceFilter)`, `list(FileSourceFilter)`; a lambda works, e.g. `dir.listFiles(f -> f.getName().endsWith(".log"))` |
 | `canRead()`, `canWrite()`, `canExecute()`, `setReadable(...)`, `setWritable(...)`, `setExecutable(...)`, `setReadOnly()` | Same names, plus per-class ones such as `setGroupWritable(...)` and `canOtherRead()` |
 | `file.setLastModified(time)` | `file.setLastModifiedTime(time)` |
 | `file.renameTo(dest)` | `file.renameTo(dest)`, where `dest` is a `FileSource` from the same factory. It never replaces an existing file (see [Behaviour worth knowing](#behaviour-worth-knowing)). |
@@ -250,10 +250,7 @@ After:
 ```java
 long totalLogSize(FileSource dir) throws IOException {
     long total = 0;
-    FileSource[] logs = dir.listFiles(new FileSourceFilter() {
-        public boolean accept(FileSource f) { return f.getName().endsWith(".log"); }
-        public String getDescription()      { return "*.log"; }
-    });
+    FileSource[] logs = dir.listFiles(f -> f.getName().endsWith(".log"));
     if (logs != null) {
         for (FileSource f : logs) {
             total += f.length();
@@ -263,7 +260,7 @@ long totalLogSize(FileSource dir) throws IOException {
 }
 ```
 
-`FileSourceFilter` has two methods (`getDescription()` is used by the file chooser dialog), so it can't be written as a lambda; an anonymous class or a small named class does the job.
+`FileSourceFilter` is a functional interface, so the lambda carries over unchanged. Its `getDescription()` (default "Filtered files") is only shown by the file chooser dialog; override it for filters you show there. One difference: `accept` can't throw `IOException`, so a filter that calls `isDirectory()`, `length()` and similar needs a `try`/`catch` inside the lambda.
 
 The caller changes from `totalLogSize(new File("/var/log/app"))` to `totalLogSize(factory.createFileSource("/var/log/app"))`, and now works unchanged against a memory, FTP, SFTP or JDBC factory.
 
