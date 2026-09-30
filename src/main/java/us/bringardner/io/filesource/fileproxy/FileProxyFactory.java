@@ -77,6 +77,15 @@ public class FileProxyFactory extends FileSourceFactory {
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSourceFactory#getTypeId()
 	 */
+	/**
+	 * Every FileProxyFactory reads the same local disk.
+	 */
+	@Override
+	public boolean isSameFileSystem(FileSourceFactory other) {
+		return other instanceof FileProxyFactory;
+	}
+
+	@Override
 	public String getTypeId() {
 
 		return FACTORY_ID;

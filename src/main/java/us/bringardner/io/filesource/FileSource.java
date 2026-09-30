@@ -288,14 +288,38 @@ public interface FileSource extends Serializable, Comparable<Object> {
 
 
 	/**
-	 * Return true if child is this FileSource or is located inside it.
+	 * Return true if child is this FileSource or is really located inside it: both
+	 * come from the same file system and child's canonical path is this one's canonical
+	 * path or below it (see {@link FileSourceFactory#isSameOrDescendant(String, String)}).
+	 * So dir/../x, a same-prefix sibling such as dir2/x, and a symbolic link inside dir
+	 * that leads outside it are NOT children. Callers may use this as a containment
+	 * (sandbox) check. Any error answers false.
 	 * <p>
-	 * Implementations MUST resolve "." and ".." (and, where the file system has them,
-	 * symbolic links) before comparing, and compare whole path elements, so that
-	 * dir/../x and dir2/x are not children of dir. Callers may use this as a
-	 * sandbox (containment) check.
+	 * This is the single implementation for every file system. Implementations must NOT
+	 * override it; they provide a correct {@link #getCanonicalPath()} instead (absolute,
+	 * with "." and ".." resolved, and symbolic links resolved where the file system has
+	 * them) and, if needed, {@link FileSourceFactory#isSameFileSystem(FileSourceFactory)}.
+	 *
+	 * @param child the candidate
+	 * @return true if child is this or inside this
+	 * @throws IOException never thrown by this implementation (kept for compatibility)
 	 */
-	public boolean isChildOfMine(FileSource child)  throws IOException ;
+	default boolean isChildOfMine(FileSource child)  throws IOException {
+		if( child == null ) {
+			return false;
+		}
+		try {
+			FileSourceFactory mine = getFileSourceFactory();
+			FileSourceFactory theirs = child.getFileSourceFactory();
+			if( mine == null || theirs == null || !mine.isSameFileSystem(theirs) ) {
+				return false;
+			}
+			return FileSourceFactory.isSameOrDescendant(getCanonicalPath(), child.getCanonicalPath());
+		} catch (IOException | RuntimeException e) {
+			// fail closed
+			return false;
+		}
+	}
 
 	public boolean isDirectory() throws IOException ;
 

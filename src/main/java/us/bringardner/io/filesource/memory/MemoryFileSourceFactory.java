@@ -387,6 +387,8 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 				MemoryFileSource efs = (MemoryFileSource) existing;
 				ret = getProxy(efs, nfs, hardLink);
 				nfs.linkedTo = ret;
+				// a symbolic link's canonical path is its target's (as java.io.File)
+				nfs.symlinkTarget = hardLink ? null : efs;
 				nfs.updateRetention();
 			}
 		}

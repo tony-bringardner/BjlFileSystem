@@ -80,6 +80,8 @@ public class MemoryFileSource implements FileSource {
 	private FileSourceUser owner;
 	private volatile MemoryFileSource parent;
 	volatile FileSource linkedTo;
+	/** For a symbolic link: the file it points to (hard links leave this null). */
+	volatile MemoryFileSource symlinkTarget;
 	/** Children that exist (or have existing descendants / are links). Held strongly. */
 	private Map<String,MemoryFileSource> kidsMap = new TreeMap<>();
 	/**
@@ -336,6 +338,7 @@ public class MemoryFileSource implements FileSource {
 					return false;
 				}
 				linkedTo = null;           // deleting a link removes the link itself
+				symlinkTarget = null;
 				updateRetention();
 				return true;
 			}
@@ -363,34 +366,56 @@ public class MemoryFileSource implements FileSource {
 		return fileType != FileType.Undefined;
 	}
 
-	/* (non-Javadoc)
-	 * @see us.bringardner.io.FileSource#getCanonicalPath()
+	/**
+	 * @return this file's own location: its parents' names and its name, with no links
+	 * resolved. (This used to be getCanonicalPath(), which made a symbolic link's
+	 * canonical path its own location instead of its target's.)
 	 */
-	public String getCanonicalPath() throws IOException {
+	private String lexicalPath() {
 		synchronized (lock()) {
 			if( cananicalPath == null ) {
-				{
-					if( cananicalPath == null ) {
-						StringBuilder tmp = new StringBuilder();
-						if( parent != null ) {
-							tmp.append(parent.getCanonicalPath());
-						} else {
-							return "/";
-						}
-						tmp.append('/');
-						if( (name.isEmpty() || !name.equals("/"))) {
-							tmp.append(name);
-						}
-						cananicalPath = tmp.toString().trim();
-					}
+				StringBuilder tmp = new StringBuilder();
+				if( parent != null ) {
+					tmp.append(parent.lexicalPath());
+				} else {
+					return "/";
 				}
+				tmp.append('/');
+				if( (name.isEmpty() || !name.equals("/"))) {
+					tmp.append(name);
+				}
+				cananicalPath = tmp.toString().trim();
 				if( cananicalPath.startsWith("//")) {
 					cananicalPath = cananicalPath.substring(1);
 				}
 			}
-
 			return cananicalPath;
 		}
+	}
+
+	/**
+	 * The canonical path, as java.io.File defines it: a symbolic link resolves to its
+	 * target (and a path through a linked directory to the target's path); a hard link
+	 * is just another name, so it keeps its own path.
+	 */
+	public String getCanonicalPath() throws IOException {
+		return canonicalPath(0);
+	}
+
+	private String canonicalPath(int depth) throws IOException {
+		if( depth > 40 ) {
+			throw new IOException("Too many levels of symbolic links: "+lexicalPath());
+		}
+		MemoryFileSource target = symlinkTarget;
+		if( target != null ) {
+			return target.canonicalPath(depth+1);
+		}
+		if( parent == null ) {
+			return "/";
+		}
+		String p = parent.canonicalPath(depth+1);
+		String ret = (p.endsWith("/") ? p : p+"/") + ((name.isEmpty() || name.equals("/")) ? "" : name);
+		return ret.startsWith("//") ? ret.substring(1) : ret;
 	}
 
 	/* (non-Javadoc)
@@ -409,21 +434,6 @@ public class MemoryFileSource implements FileSource {
 		return parent == null ? null:parent.getAbsolutePath();
 	}
 
-	/**
-	 * True if child is this file or below it. (A plain startsWith used to
-	 * treat /x/ab as a child of /x/a.)
-	 */
-	public boolean isChildOfMine(FileSource child) {
-		boolean ret = (child instanceof MemoryFileSource);
-		if( ret ){
-			String p1 = child.getAbsolutePath();
-			String p2 = getAbsolutePath();
-			String prefix = p2.endsWith("/") ? p2 : p2+"/";
-			ret = p1.equals(p2) || p1.startsWith(prefix);
-		}
-
-		return ret;
-	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#getParentFile()
@@ -574,6 +584,7 @@ public class MemoryFileSource implements FileSource {
 						newFile.createDate = createDate;
 						newFile.owner = owner;
 						newFile.linkedTo = linkedTo;
+						newFile.symlinkTarget = symlinkTarget;
 						newFile.isRoot = isRoot;
 						newFile.deleted = false;
 
@@ -593,6 +604,7 @@ public class MemoryFileSource implements FileSource {
 
 						data = null;
 						linkedTo = null;
+						symlinkTarget = null;
 						fileType = FileType.Undefined;
 						canOwnerRead = canOwnerWrite = false;
 						newFile.updateRetention();
@@ -741,8 +753,9 @@ public class MemoryFileSource implements FileSource {
 		String path = null;
 
 		try {
-			path = getCanonicalPath();
-		} catch (IOException e) {
+			// the file's own location (a symbolic link's URL is the link, not its target)
+			path = getAbsolutePath();
+		} catch (RuntimeException e) {
 			throw new MalformedURLException("Can't get path");
 		}
 		// Include the factory's session id: without it, resolving the URL
@@ -849,11 +862,8 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.filesource.FileSource#getAbsolutePath()
 	 */
 	public String getAbsolutePath() {
-		try {
-			return getCanonicalPath();
-		} catch (IOException e) {
-			return name;
-		}
+		// The file's own location; a symbolic link is NOT resolved here
+		return lexicalPath();
 	}
 
 	/* (non-Javadoc)

@@ -497,4 +497,104 @@ public abstract class AbstractTestClass {
 		
 	}
 
+
+	// ------------------------------------------------------------------ isChildOfMine contract
+	//
+	// Runs for every factory whose test class extends this one. The rule itself lives in
+	// FileSource.isChildOfMine (one implementation for all factories); what each file
+	// system must get right is getCanonicalPath().
+
+	@Test
+	public void testIsChildOfMineContract() throws IOException {
+		FileSource base = factory.createFileSource(remoteTestFileDirPath).getChild("isChildOfMineContract");
+		if( base.exists() ) {
+			deleteAll(base);
+		}
+		try {
+			FileSource root = base.getChild("root");
+			FileSource sub = root.getChild("sub");
+			assertTrue(sub.mkdirs(), "can't create "+sub);
+			write(sub.getChild("file.txt"), "inside");
+			FileSource sibling = base.getChild("rootX");   // same prefix as root
+			assertTrue(sibling.mkdirs(), "can't create "+sibling);
+			write(sibling.getChild("x.txt"), "sibling");
+			FileSource outsideDir = base.getChild("outside");
+			assertTrue(outsideDir.mkdirs(), "can't create "+outsideDir);
+			write(outsideDir.getChild("secret.txt"), "secret");
+
+			// inside
+			assertTrue(root.isChildOfMine(root), "itself");
+			assertTrue(root.isChildOfMine(sub), "sub");
+			assertTrue(root.isChildOfMine(root.getChild("sub/file.txt")), "sub/file.txt");
+			assertTrue(root.isChildOfMine(root.getChild("sub/../sub/file.txt")), "sub/../sub/file.txt");
+			assertTrue(root.isChildOfMine(root.getChild("new/../also-new")), "a path that doesn't exist yet");
+
+			// not inside
+			for(String p : new String[] {"..", "../outside/secret.txt", "sub/../../outside/secret.txt", "a/../../rootX/x.txt"}) {
+				assertFalse(root.isChildOfMine(root.getChild(p)), p+" must not be inside "+root);
+			}
+			assertFalse(root.isChildOfMine(sibling.getChild("x.txt")), "same-prefix sibling");
+			assertFalse(root.isChildOfMine(base), "parent");
+			assertFalse(root.isChildOfMine(null), "null");
+
+			// a symbolic link inside root that leads outside is not inside
+			FileSource link = null;
+			try {
+				link = factory.createSymbolicLink(root.getChild("link-out"), outsideDir);
+			} catch (IOException | UnsupportedOperationException e) {
+				if( verbose ) {
+					System.out.println("No symbolic links for "+factory.getTypeId()+": "+e);
+				}
+			}
+			if( link != null ) {
+				assertFalse(root.isChildOfMine(link), "symbolic link to outside");
+				assertFalse(root.isChildOfMine(root.getChild("link-out")), "symbolic link to outside, looked up by path");
+				assertFalse(root.isChildOfMine(root.getChild("link-out/secret.txt")), "file through a symbolic link to outside");
+			}
+
+			// a hard link is just another name: it IS inside
+			FileSource hard = null;
+			try {
+				hard = factory.createLink(root.getChild("hard.txt"), outsideDir.getChild("secret.txt"));
+			} catch (IOException | UnsupportedOperationException e) {
+				if( verbose ) {
+					System.out.println("No hard links for "+factory.getTypeId()+": "+e);
+				}
+			}
+			if( hard != null ) {
+				assertTrue(root.isChildOfMine(root.getChild("hard.txt")), "hard link inside root");
+			}
+
+			// the rule has one implementation: no FileSource class may override it
+			assertNoIsChildOfMineOverride(root.getClass());
+		} finally {
+			if( base.exists() ) {
+				deleteAll(base);
+			}
+		}
+	}
+
+	private static void write(FileSource file, String text) throws IOException {
+		try(OutputStream out = file.getOutputStream()) {
+			out.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		}
+	}
+
+	/**
+	 * Fails if cls (or a superclass) declares isChildOfMine: every FileSource must use the
+	 * single implementation in FileSource.
+	 */
+	public static void assertNoIsChildOfMineOverride(Class<?> cls) {
+		if( java.lang.reflect.Proxy.isProxyClass(cls) ) {
+			return;   // proxies forward to a real FileSource
+		}
+		for(Class<?> c = cls; c != null && c != Object.class; c = c.getSuperclass()) {
+			for(java.lang.reflect.Method m : c.getDeclaredMethods()) {
+				if( m.getName().equals("isChildOfMine") && !m.isSynthetic() ) {
+					throw new AssertionError(c.getName()+" overrides isChildOfMine; FileSource has the one implementation."
+							+" Provide a correct getCanonicalPath() instead.");
+				}
+			}
+		}
+	}
 }

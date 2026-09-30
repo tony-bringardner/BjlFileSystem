@@ -26,7 +26,7 @@ public class PathLogicTests {
 
 	/** isChildOfMine used a plain startsWith, so /x/ab counted as a child of /x/a. */
 	@Test
-	public void fileProxyIsChildOfMine() {
+	public void fileProxyIsChildOfMine() throws IOException {
 		FileSourceFactory f = FileSourceFactory.getDefaultFactory();
 		FileProxy a = new FileProxy(new File("/x/a"), f);
 		assertTrue(a.isChildOfMine(new FileProxy(new File("/x/a/b"), f)));
@@ -71,6 +71,50 @@ public class PathLogicTests {
 		assertEquals("\\\\server\\share\\x.txt", f.createFileSource("\\\\server\\share\\x.txt").getAbsolutePath());
 		String drive = new File(".").getCanonicalPath().substring(0, 2);
 		assertEquals(drive+"\\foo", f.createFileSource("\\foo").getAbsolutePath());
+	}
+
+	/** The rule behind isChildOfMine, directly. */
+	@Test
+	public void isSameOrDescendant() {
+		assertTrue(FileSourceFactory.isSameOrDescendant("/x/a", "/x/a"));
+		assertTrue(FileSourceFactory.isSameOrDescendant("/x/a", "/x/a/b"));
+		assertTrue(FileSourceFactory.isSameOrDescendant("/", "/x"));
+		assertTrue(FileSourceFactory.isSameOrDescendant("C:\\", "C:\\x"));
+		assertTrue(FileSourceFactory.isSameOrDescendant("C:\\x", "C:\\x\\y"));
+		assertFalse(FileSourceFactory.isSameOrDescendant("/x/a", "/x/ab"));
+		assertFalse(FileSourceFactory.isSameOrDescendant("/x/a", "/x"));
+		assertFalse(FileSourceFactory.isSameOrDescendant("/x/a", null));
+		assertFalse(FileSourceFactory.isSameOrDescendant("", "/x"));
+	}
+
+	/** Files from different file systems are never inside each other. */
+	@Test
+	public void differentFileSystemsAreNeverChildren() throws IOException {
+		MemoryFileSourceFactory m1 = new MemoryFileSourceFactory();
+		MemoryFileSourceFactory m2 = new MemoryFileSourceFactory();
+		assertTrue(m1.createFileSource("/").isChildOfMine(m1.createFileSource("/a")));
+		assertFalse(m1.createFileSource("/").isChildOfMine(m2.createFileSource("/a")), "two memory file systems");
+		FileSource local = new FileProxyFactory().createFileSource("/");
+		assertFalse(local.isChildOfMine(m1.createFileSource("/a")), "local vs memory");
+		assertTrue(local.isChildOfMine(new FileProxyFactory().createFileSource("/tmp")), "two local factories share the disk");
+	}
+
+	/** A memory symbolic link resolves to its target (like java.io.File); a hard link keeps its own path. */
+	@Test
+	public void memoryLinkCanonicalPaths() throws IOException {
+		MemoryFileSourceFactory m = new MemoryFileSourceFactory();
+		FileSource target = m.createFileSource("/srv/outside");
+		assertTrue(target.mkdirs());
+		FileSource file = m.createFileSource("/srv/outside/f.txt");
+		try (java.io.OutputStream o = file.getOutputStream()) { o.write(1); }
+		assertTrue(m.createFileSource("/srv/root").mkdirs());
+
+		m.createSymbolicLink(m.createFileSource("/srv/root/sym"), target);
+		assertEquals("/srv/outside", m.createFileSource("/srv/root/sym").getCanonicalPath());
+		assertEquals("/srv/root/sym", m.createFileSource("/srv/root/sym").getAbsolutePath(), "absolute path is the link's own location");
+
+		m.createLink(m.createFileSource("/srv/root/hard.txt"), file);
+		assertEquals("/srv/root/hard.txt", m.createFileSource("/srv/root/hard.txt").getCanonicalPath());
 	}
 
 	// ------------------------------------------------------------------ escapes

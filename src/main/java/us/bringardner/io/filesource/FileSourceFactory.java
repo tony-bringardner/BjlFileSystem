@@ -568,6 +568,48 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	/*
 	 * Return the type id (File / JbdcFile / just like URL prototype)
 	 */
+	/**
+	 * The one definition of "inside" used by {@link FileSource#isChildOfMine(FileSource)}.
+	 * <p>
+	 * Both arguments must be canonical paths (absolute, "." and ".." resolved, links
+	 * resolved where the file system has them). Returns true if child equals parent or is
+	 * below it, comparing whole path elements, so /x/ab is not inside /x/a.
+	 * Both "/" and "\\" count as separators. Static, so it can't be overridden.
+	 *
+	 * @param parentCanonical canonical path of the directory
+	 * @param childCanonical canonical path of the candidate
+	 * @return true if childCanonical is parentCanonical or below it
+	 */
+	public static boolean isSameOrDescendant(String parentCanonical, String childCanonical) {
+		if( parentCanonical == null || childCanonical == null || parentCanonical.isEmpty() ) {
+			return false;
+		}
+		if( childCanonical.equals(parentCanonical) ) {
+			return true;
+		}
+		if( !childCanonical.startsWith(parentCanonical) ) {
+			return false;
+		}
+		char last = parentCanonical.charAt(parentCanonical.length()-1);
+		if( last == '/' || last == '\\' ) {
+			return true;   // the parent is a root such as "/" or "C:\\"
+		}
+		char next = childCanonical.charAt(parentCanonical.length());
+		return next == '/' || next == '\\';
+	}
+
+	/**
+	 * @param other another factory
+	 * @return true if files from other are in the same file system (the same tree of
+	 * paths) as files from this factory, so their paths can be compared.
+	 * The default is identity. Override when separate factory instances share one file
+	 * system (e.g. every local-disk factory, or two sessions to the same SFTP host, port
+	 * and user).
+	 */
+	public boolean isSameFileSystem(FileSourceFactory other) {
+		return other == this;
+	}
+
 	public abstract String getTypeId() ;
 
 

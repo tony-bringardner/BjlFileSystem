@@ -535,28 +535,6 @@ public class FileProxy implements FileSource {
 	 * True if child is this file or below it. (A plain startsWith used to
 	 * treat /x/ab as a child of /x/a.)
 	 */
-	/**
-	 * @return true if child is this directory or inside it.
-	 * <p>
-	 * Compares canonical paths, so "." / ".." and symbolic links are resolved first:
-	 * root/../x and a link inside root that points outside are NOT children.
-	 * (This used to compare getAbsolutePath(), which keeps "..", so root/../x passed
-	 * and code using this as a sandbox check could be escaped.)
-	 * Path.startsWith compares whole name elements, so /x/ab is not inside /x/a.
-	 * If either path can't be resolved the answer is false (fail closed).
-	 */
-	public boolean isChildOfMine(FileSource child) {
-		if( !(child instanceof FileProxy) ) {
-			return false;
-		}
-		try {
-			java.nio.file.Path mine = target.getCanonicalFile().toPath();
-			java.nio.file.Path other = ((FileProxy)child).target.getCanonicalFile().toPath();
-			return other.startsWith(mine);
-		} catch (IOException | java.nio.file.InvalidPathException e) {
-			return false;
-		}
-	}
 
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.FileSource#getParentFile()
