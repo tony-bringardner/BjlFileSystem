@@ -457,7 +457,8 @@ public abstract class AbstractRandomAccessStream implements IRandomAccessStream 
 				throw new FileNotFoundException(file.getAbsolutePath()+" is not a valid readable file");
 			}
 			readOnly = true;
-		} else if(mode.equals("w") || mode.startsWith("rw")) {
+		} else if(mode.equals("w") || mode.equals("rw") || mode.equals("rws") || mode.equals("rwd")) {
+			// the RandomAccessFile modes, plus "w" (was any mode starting with "rw", e.g. "rwx")
 			if( !file.exists()) {
 				if( !file.createNewFile()) {
 					throw new IOException("Could not create "+file);
@@ -467,7 +468,8 @@ public abstract class AbstractRandomAccessStream implements IRandomAccessStream 
 				throw new FileNotFoundException(file.getAbsolutePath()+" is not a valid readable/writable file");
 			}
 		} else {
-			throw new IllegalStateException("invalid mode = "+mode);
+			// IllegalArgumentException, as RandomAccessFile throws (was IllegalStateException)
+			throw new IllegalArgumentException("invalid mode = "+mode);
 		}
 
 
@@ -501,6 +503,7 @@ public abstract class AbstractRandomAccessStream implements IRandomAccessStream 
 	 * @throws    IOException If an I/O error has occurred.
 	 */
 	public int readBytes(byte[] b, int off, int len) throws IOException {
+		java.util.Objects.checkFromIndexSize(off, len, b.length);   // as RandomAccessFile does
 		boolean eof = false;
 		int ret = 0;
 		for(int idx = 0;!eof &&  idx < len; idx++ ) {
@@ -675,6 +678,7 @@ public abstract class AbstractRandomAccessStream implements IRandomAccessStream 
 	 * @throws    IOException If an I/O error has occurred.
 	 */
 	public void writeBytes(byte[] b, int off, int len) throws IOException {
+		java.util.Objects.checkFromIndexSize(off, len, b.length);   // as RandomAccessFile does
 		for(int idx = 0; idx < len; idx++ ) {
 			write(b[off+idx]);
 		}
@@ -1224,9 +1228,19 @@ public abstract class AbstractRandomAccessStream implements IRandomAccessStream 
 	 * @throws     IOException  if an I/O error occurs.
 	 */
 
+	/**
+	 * Writes the low eight bits of each char, one byte per char, as
+	 * DataOutput specifies. (It used to write s.getBytes(), i.e. the
+	 * platform's default charset, so any non-ASCII char became several
+	 * bytes and everything written after it landed at the wrong offset.)
+	 */
 	public  void writeBytes(String s) throws IOException {
-		byte[] b = s.getBytes();        
-		writeBytes(b, 0, b.length);
+		int len = s.length();
+		byte[] b = new byte[len];
+		for (int i = 0; i < len; i++) {
+			b[i] = (byte) s.charAt(i);
+		}
+		writeBytes(b, 0, len);
 	}
 
 	/**

@@ -93,6 +93,7 @@ public class FileSourceRandomAccessStream extends AbstractRandomAccessStream {
 	
 	@Override
 	public long getFilePointer() throws IOException {
+		checkOpen();
 		return pointer;
 	}
 
@@ -115,6 +116,7 @@ public class FileSourceRandomAccessStream extends AbstractRandomAccessStream {
 
 	@Override
 	public void seek(long pos) throws IOException {
+		checkOpen();
 		if (pos < 0) {
 			throw new IOException("Negative seek offset");
 		}
@@ -131,6 +133,7 @@ public class FileSourceRandomAccessStream extends AbstractRandomAccessStream {
 	 */
 	@Override
 	public long length() throws IOException {
+		checkOpen();
 		long ret = io.length();
 		return ret;
 	}
@@ -157,6 +160,7 @@ public class FileSourceRandomAccessStream extends AbstractRandomAccessStream {
 	 */
 	@Override
 	public void setLength(long newLength) throws IOException {
+		checkOpen();
 		if( readOnly ) {
 			// trying to match Java
 			throw new IOException("Invalid argument (read only)");
@@ -170,8 +174,21 @@ public class FileSourceRandomAccessStream extends AbstractRandomAccessStream {
 	}
 
 
+	/**
+	 * Like RandomAccessFile, every operation on a closed stream throws.
+	 * (seek, length, setLength and getFilePointer used to keep working.)
+	 */
+	private void checkOpen() throws IOException {
+		if( closed ) {
+			throw new IOException("Stream Closed");
+		}
+	}
+
 	@Override
 	public void close() throws IOException {
+		if( closed ) {
+			return;
+		}
 		try {
 			io.close();
 		} catch (Exception e) {
