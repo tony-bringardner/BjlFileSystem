@@ -81,7 +81,7 @@ try (InputStream in = file.getInputStream()) {
 }
 ```
 
-All `FileSource` objects are created by a `FileSourceFactory`. Everything else (`getChild`, `getParentFile`, `listFiles`, `exists`, `mkdirs`, `delete`, `renameTo`, permissions, times, …) works much as it does on `java.io.File`. To convert existing code, see [Migrating code from java.io.File](#migrating-code-from-javaiofile).
+All `FileSource` objects are created by a `FileSourceFactory`. Everything else (`getChild`, `getParentFile`, `listFiles`, `exists`, `mkdirs`, `delete`, `renameTo`, permissions, times, …) works much as it does on `java.io.File`. To convert existing code, see [Migrating from File to FileSource](#migrating-from-file-to-filesource).
 
 ## Implementations
 
@@ -145,7 +145,7 @@ try {
 
 `IRandomAccessStream` has the same methods as `java.io.RandomAccessFile` (`seek`, `read`, `readFully`, `readInt`, `writeUTF`, `setLength`, …). For read-only access with seeking, use `getSeekableInputStream()`.
 
-## java.nio.file support
+## NIO file system provider
 
 `FileSourcePath` adapts any FileSource to a `java.nio.file.Path`. The provider is registered for the `filesource` scheme, so `Paths.get(URI)` works too:
 
@@ -179,7 +179,7 @@ For remote file systems the lookup service only knows the connected user and tha
 
 The unit tests in `src/test/java`, starting with `AbstractTestClass`, are the best worked examples of what an implementation has to support.
 
-## Migrating code from java.io.File
+## Migrating from File to FileSource
 
 `FileSource` was designed to look like `java.io.File`, so most of a migration is mechanical: create files through a factory instead of `new File(...)`, change `File` to `FileSource` in your types, and replace `FileInputStream`/`FileOutputStream` with the file's own streams. Once that's done, the same code works on local files, in memory, or on an FTP/SFTP/JDBC file system, depending only on which factory created the `FileSource`.
 
@@ -217,7 +217,7 @@ The unit tests in `src/test/java`, starting with `AbstractTestClass`, are the be
 | `File.listRoots()` | `factory.listRoots()` |
 | `File.separatorChar`, `File.pathSeparatorChar` | `factory.getSeperatorChar()`, `factory.getPathSeperatorChar()` |
 | `file.toURI()`, `file.toURL()` | `file.toURL()`, a [`filesource:` URL](#urls) that works for every implementation |
-| `file.toPath()` | `new FileSourcePath(file)`, for use with `java.nio.file.Files` ([java.nio.file support](#javaniofile-support)) |
+| `file.toPath()` | `new FileSourcePath(file)`, for use with `java.nio.file.Files` ([NIO file system provider](#nio-file-system-provider)) |
 | `new FileInputStream(file)` | `file.getInputStream()` |
 | `new FileOutputStream(file)`, `new FileOutputStream(file, true)` | `file.getOutputStream()`, `file.getOutputStream(true)` |
 | `new FileReader(file, charset)` | `new FileSourceReader(file, charset)` |
