@@ -27,10 +27,10 @@ package us.bringardner.io.filesource.test.link;
 
 
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static us.bringardner.io.filesource.test.AbstractTestClass.compare;
 import static us.bringardner.io.filesource.test.AbstractTestClass.copy;
@@ -86,13 +86,13 @@ public class FileSourceMemoryLinkTests {
 	public void createLocalCache() throws IOException {
 		//System.out.println("Enter testCreateLocalCache");
 		FileSource _localDir = FileSourceFactory.getDefaultFactory().createFileSource(localTestFileDirPath);
-		assertTrue("local test dir does not exist ="+_localDir,_localDir.isDirectory());
+		assertTrue(_localDir.isDirectory(), "local test dir does not exist ="+_localDir);
 
 		FileSource cacheDir = FileSourceFactory.getDefaultFactory().createFileSource(localCacheDirPath);
 		if( cacheDir.exists()) {
 			deleteAll(cacheDir);			
 		}
-		assertFalse("local cache dir already exists ="+cacheDir,cacheDir.exists());
+		assertFalse(cacheDir.exists(), "local cache dir already exists ="+cacheDir);
 
 		//  Make a copy of the local test directory
 		copy(_localDir,cacheDir);
@@ -103,9 +103,8 @@ public class FileSourceMemoryLinkTests {
 		}
 		
 		if( !remoteDir.exists()) {
-			assertTrue("Cannot create remote directory"+remoteDir,
-					remoteDir.mkdirs()
-					);			
+			assertTrue(remoteDir.mkdirs()
+					, "Cannot create remote directory"+remoteDir);			
 		}
 		//  Make another copy of the local test directory
 		copy(cacheDir,remoteDir);

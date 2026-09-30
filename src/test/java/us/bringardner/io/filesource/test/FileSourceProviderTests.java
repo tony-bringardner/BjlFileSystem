@@ -25,10 +25,10 @@
  */
 package us.bringardner.io.filesource.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.net.URI;
@@ -125,11 +125,11 @@ public class FileSourceProviderTests extends AbstractTestClass {
 			Map<String, Object> expectMap = expect[idx];
 			for(String key : expectMap.keySet()) {
 				key = key.trim();
-				assertTrue("idx="+idx+" key="+key+" is not in actual map",actualMap.containsKey(key));
+				assertTrue(actualMap.containsKey(key), "idx="+idx+" key="+key+" is not in actual map");
 			}
 			for(String key : actualMap.keySet()) {
 				key = key.trim();
-				assertTrue("idx="+idx+" key="+key+" is not in expected map",expectMap.containsKey(key));
+				assertTrue(expectMap.containsKey(key), "idx="+idx+" key="+key+" is not in expected map");
 			}
 
 
@@ -156,28 +156,28 @@ public class FileSourceProviderTests extends AbstractTestClass {
 		try (DirectoryStream<Path> stream = Files.newDirectoryStream(target)) {
 			for (Path path : stream) {
 				BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-				assertNotNull("attributes are null path="+path,attr);
+				assertNotNull(attr, "attributes are null path="+path);
 				checkTime("new create time "+path,now,attr.creationTime());
 				checkTime("new access time "+path,now,attr.lastAccessTime());
 				checkTime("new modify time "+path,now,attr.lastModifiedTime());
-				assertEquals("isDir",Files.isDirectory(path), attr.isDirectory());
-				assertEquals("isFile",Files.isRegularFile(path), attr.isRegularFile());
-				assertEquals("isSymlink",Files.isSymbolicLink(path), attr.isSymbolicLink());
+				assertEquals(Files.isDirectory(path), attr.isDirectory(), "isDir");
+				assertEquals(Files.isRegularFile(path), attr.isRegularFile(), "isFile");
+				assertEquals(Files.isSymbolicLink(path), attr.isSymbolicLink(), "isSymlink");
 
 				PosixFileAttributes pattr = Files.readAttributes(path, PosixFileAttributes.class);
-				assertNotNull("pattr is null for path="+path,pattr);
+				assertNotNull(pattr, "pattr is null for path="+path);
 				checkTime("new create time "+path,now,pattr.creationTime());
 				checkTime("new access time "+path,now,pattr.lastAccessTime());
 				checkTime("new modify time "+path,now,pattr.lastModifiedTime());
-				assertEquals("isDir",Files.isDirectory(path), pattr.isDirectory());
-				assertEquals("isFile",Files.isRegularFile(path), pattr.isRegularFile());
-				assertEquals("isSymlink",Files.isSymbolicLink(path), pattr.isSymbolicLink());
-				assertEquals("Owner",Files.getOwner(path), pattr.owner());
+				assertEquals(Files.isDirectory(path), pattr.isDirectory(), "isDir");
+				assertEquals(Files.isRegularFile(path), pattr.isRegularFile(), "isFile");
+				assertEquals(Files.isSymbolicLink(path), pattr.isSymbolicLink(), "isSymlink");
+				assertEquals(Files.getOwner(path), pattr.owner(), "Owner");
 				for(PosixFilePermission p :  pattr.permissions()) {
 					switch (p) {
-					case OWNER_READ: assertTrue("should be readable path="+path,Files.isReadable(path));break;
-					case OWNER_WRITE: assertTrue("should be writable path="+path,Files.isWritable(path));break;
-					case OWNER_EXECUTE: assertTrue("should be executable path="+path,Files.isExecutable(path));break;
+					case OWNER_READ: assertTrue(Files.isReadable(path), "should be readable path="+path);break;
+					case OWNER_WRITE: assertTrue(Files.isWritable(path), "should be writable path="+path);break;
+					case OWNER_EXECUTE: assertTrue(Files.isExecutable(path), "should be executable path="+path);break;
 					case GROUP_READ:
 					case GROUP_WRITE:
 					case GROUP_EXECUTE:
@@ -220,7 +220,7 @@ public class FileSourceProviderTests extends AbstractTestClass {
 	public static void checkTime(String msg, FileTime expect,	 FileTime actual) {
 		long et = expect.to(TimeUnit.MINUTES);
 		long at = expect.to(TimeUnit.MINUTES);
-		assertEquals(msg,et,at);
+		assertEquals(et,at, msg);
 	}
 
 	@Test
@@ -241,7 +241,7 @@ public class FileSourceProviderTests extends AbstractTestClass {
 		deleteIfExists(target);
 
 		//Path target2 = Files.copy(source, target);
-		//assertTrue("Target was not created.",Files.exists(target2));
+		//assertTrue(Files.exists(target2), "Target was not created.");
 
 		Files.walkFileTree(source, new SimpleFileVisitor<Path>() {
 			@Override
@@ -272,7 +272,7 @@ public class FileSourceProviderTests extends AbstractTestClass {
 		try(Stream<Path> kids = Files.list(target)) {
 			kids.forEach((path)->{
 				String name = path.getFileName().toString();
-				assertTrue("",expect.contains(name));
+				assertTrue(expect.contains(name), "");
 			});
 		}
 
@@ -280,9 +280,9 @@ public class FileSourceProviderTests extends AbstractTestClass {
 		try (DirectoryStream<Path> stream = Files.newDirectoryStream(source)) {
 			for (Path path : stream) {
 				String name = path.getFileName().toString();
-				assertTrue("",expect.contains(name));
+				assertTrue(expect.contains(name), "");
 				BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
-				assertNotNull("path="+path,attr);
+				assertNotNull(attr, "path="+path);
 				//FileTime time = attr.creationTime();
 
 			}
@@ -292,7 +292,7 @@ public class FileSourceProviderTests extends AbstractTestClass {
 		Files.walk(target, FileVisitOption.FOLLOW_LINKS).forEach((path)->{
 			if( !Files.isDirectory(path)) {
 				String name = path.getFileName().toString();
-				assertTrue("",expect.contains(name));
+				assertTrue(expect.contains(name), "");
 
 			}
 		});
@@ -327,7 +327,7 @@ public class FileSourceProviderTests extends AbstractTestClass {
 		Path path = Paths.get(uri2);
 		if( Files.exists(path)) {
 			Files.delete(path);
-			assertFalse("Dir already existed and could not delete it",Files.exists(path));				
+			assertFalse(Files.exists(path), "Dir already existed and could not delete it");				
 		}
 
 		String unixPerms = "rwxr-x---";
@@ -335,49 +335,49 @@ public class FileSourceProviderTests extends AbstractTestClass {
 		Set<PosixFilePermission> perms = PosixFilePermissions.fromString(unixPerms);
 		FileAttribute<Set<PosixFilePermission>> attr = PosixFilePermissions.asFileAttribute(perms);
 		Path dir = Files.createDirectory(path, attr);
-		assertNotNull("Got null from createDirectory",dir);
-		assertTrue("Dir was not created",Files.exists(dir));
-		assertTrue("Return from Files.createDirectory is not a dir ",Files.isDirectory(dir));
+		assertNotNull(dir, "Got null from createDirectory");
+		assertTrue(Files.exists(dir), "Dir was not created");
+		assertTrue(Files.isDirectory(dir), "Return from Files.createDirectory is not a dir ");
 
 		//  check permissions
 		validatePermission(unixPerms,dir);
 
 
 		Files.delete(dir);
-		assertFalse("Dir was not deleted",Files.exists(dir));
+		assertFalse(Files.exists(dir), "Dir was not deleted");
 
 	}
 
 	private void validatePermission(String unixPerms, Path dir) throws IOException {
-		assertTrue("Unix perms not the right length="+unixPerms,unixPerms.length() == 9);
+		assertTrue(unixPerms.length() == 9, "Unix perms not the right length="+unixPerms);
 		Set<PosixFilePermission> expect = PosixFilePermissions.fromString(unixPerms);
 		//  this calls readAttributes
 		Set<PosixFilePermission> actual = Files.getPosixFilePermissions(dir);
-		assertEquals("Expectd and actual permision set size does not match",expect.size(), actual.size());
+		assertEquals(expect.size(), actual.size(), "Expectd and actual permision set size does not match");
 
 		for(PosixFilePermission p : PosixFilePermission.values()) {
 			boolean eb = expect.contains(p);
 			boolean ab = actual.contains(p);
-			assertEquals("Permission is not correct for "+p+" path="+dir,eb,ab);
+			assertEquals(eb,ab, "Permission is not correct for "+p+" path="+dir);
 		}
 
 		//  check permissions
 		if( expect.contains(PosixFilePermission.OWNER_READ)) {
-			assertTrue("Directory can't be read",Files.isReadable(dir)); 
+			assertTrue(Files.isReadable(dir), "Directory can't be read"); 
 		} else {
-			assertFalse("Directory can't be read",Files.isReadable(dir));
+			assertFalse(Files.isReadable(dir), "Directory can't be read");
 		}
 
 		if( expect.contains(PosixFilePermission.OWNER_WRITE)) {
-			assertTrue("Directory can't be write",Files.isWritable(dir)); 
+			assertTrue(Files.isWritable(dir), "Directory can't be write"); 
 		} else {
-			assertFalse("Directory can't be write",Files.isWritable(dir));
+			assertFalse(Files.isWritable(dir), "Directory can't be write");
 		}
 
 		if( expect.contains(PosixFilePermission.OWNER_EXECUTE)) {
-			assertTrue("Directory can't be executable",Files.isExecutable(dir)); 
+			assertTrue(Files.isExecutable(dir), "Directory can't be executable"); 
 		} else {
-			assertFalse("Directory can't be executable",Files.isExecutable(dir));
+			assertFalse(Files.isExecutable(dir), "Directory can't be executable");
 		}
 
 	}
@@ -389,61 +389,51 @@ public class FileSourceProviderTests extends AbstractTestClass {
 		//Path filePath = !FileSourceFactory.isWindows()? Paths.get("\\one\\two\\three") :  Paths.get("/one/two/three");
 		URI uri = new URI("filesource:/one/two/three?sourcetype=fileproxy");
 		FileSourcePath fileSourcePath = new FileSourcePath(uri);
-		assertEquals("getFileName invalid", 
-				filePath.getFileName().toString(), 
-				fileSourcePath.getFileName().toString());
-		assertEquals("getNameCount invalid", 
-				filePath.getNameCount	(), 
-				fileSourcePath.getNameCount());
+		assertEquals(filePath.getFileName().toString(), 
+				fileSourcePath.getFileName().toString(), "getFileName invalid");
+		assertEquals(filePath.getNameCount	(), 
+				fileSourcePath.getNameCount(), "getNameCount invalid");
 
-		assertEquals("getParent invalid", 
-				filePath.getParent().toString(), 
-				fileSourcePath.getParent().toString());
+		assertEquals(filePath.getParent().toString(), 
+				fileSourcePath.getParent().toString(), "getParent invalid");
 
-		assertEquals("getRoot invalid", 
-				filePath.getRoot().toString(), 
-				fileSourcePath.getRoot().toString());
+		assertEquals(filePath.getRoot().toString(), 
+				fileSourcePath.getRoot().toString(), "getRoot invalid");
 
 		for(int idx=0; idx < fileSourcePath.getNameCount();  idx++){
-			assertEquals("getFileName invalid idx="+idx, 
-					filePath.getName(idx).toString(),
+			assertEquals(filePath.getName(idx).toString(),
 					fileSourcePath.getName(idx).toString()
-					);	
+					, "getFileName invalid idx="+idx);	
 		}
 		Path first = filePath.getName(0);
 		Path last = filePath.getName(filePath.getNameCount()-1);
 
-		assertEquals("startsWith invalid", 
-				filePath.startsWith(first),
-				fileSourcePath.startsWith(first));
-		assertEquals("endsWith invalid", 
-				filePath.endsWith(last), 
-				fileSourcePath.endsWith(last));
+		assertEquals(filePath.startsWith(first),
+				fileSourcePath.startsWith(first), "startsWith invalid");
+		assertEquals(filePath.endsWith(last), 
+				fileSourcePath.endsWith(last), "endsWith invalid");
 
 		Path tmp = filePath.normalize();
 		String str = tmp.toString();
 		Path tmp2 = fileSourcePath.normalize();
 		String str2 = tmp2.toString();
 
-		assertEquals("normalize invalid", 
-				str,
+		assertEquals(str,
 				str2
-				);
+				, "normalize invalid");
 
 		if( !FileSourceFactory.isWindows()) {
-			assertEquals("", 
-					filePath.toAbsolutePath().toString(), 
+			assertEquals(filePath.toAbsolutePath().toString(), 
 					fileSourcePath.toAbsolutePath().toString()
-					);
-			assertEquals("resolve invalid", 
-					filePath.resolve(last).toString(),
-					fileSourcePath.resolve(last).toString());
+					, "");
+			assertEquals(filePath.resolve(last).toString(),
+					fileSourcePath.resolve(last).toString(), "resolve invalid");
 
 
 		} else {
 			//  Windows does not handle relative paths correctly 
-			assertTrue("", fileSourcePath.toAbsolutePath().toString().endsWith( filePath.toAbsolutePath().toString().substring(2))	);
-			assertTrue("", fileSourcePath.resolve(last).toString().endsWith( filePath.resolve(last).toString().substring(2))	);
+			assertTrue(fileSourcePath.toAbsolutePath().toString().endsWith( filePath.toAbsolutePath().toString().substring(2))	, "");
+			assertTrue(fileSourcePath.resolve(last).toString().endsWith( filePath.resolve(last).toString().substring(2))	, "");
 		}
 
 	}
@@ -486,7 +476,7 @@ public class FileSourceProviderTests extends AbstractTestClass {
 			if(! file.equals(file2)) {
 				System.out.println("Not eq");
 			} 
-			assertEquals("Normalized don't match", file, file2);
+			assertEquals(file, file2, "Normalized don't match");
 
 		}
 	}

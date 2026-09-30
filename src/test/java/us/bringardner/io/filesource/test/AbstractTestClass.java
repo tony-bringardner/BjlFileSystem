@@ -25,12 +25,9 @@
  */
 package us.bringardner.io.filesource.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.BufferedInputStream;
@@ -197,9 +194,8 @@ public abstract class AbstractTestClass {
 			}
 			}
 		}
-		assertTrue("Can't delete "+file,
-				file.delete()
-				);
+		assertTrue(file.delete()
+				, "Can't delete "+file);
 	}
 
 	public static String format(FileSource dir) throws IOException {
@@ -219,27 +215,25 @@ public abstract class AbstractTestClass {
 	}
 
 	public static void compare(String name,FileSource source, FileSource target) throws IOException {
-		assertTrue("Source file does not exist ("+
-				source.getName()+")",
-				source.exists()
-				);
-		assertTrue("Target file does not exist ("+
-		target.getName()+")",
-		target.exists()
-		);
+		assertTrue(source.exists()
+				, "Source file does not exist ("+
+				source.getName()+")");
+		assertTrue(target.exists()
+		, "Target file does not exist ("+
+		target.getName()+")");
 
-		assertEquals(name+" are not the same type",source.isDirectory(), target.isDirectory());
+		assertEquals(source.isDirectory(), target.isDirectory(), name+" are not the same type");
 
 		if( source.isDirectory()) {
 			FileSource [] kids1 = source.listFiles();
 			FileSource [] kids2 = target.listFiles();
-			assertEquals(name+" does not have the same number of kids",kids1.length,kids2.length);
+			assertEquals(kids1.length,kids2.length, name+" does not have the same number of kids");
 			for(int idx=0;idx <  kids1.length; idx++ ) {
 				compare(name,kids1[idx],kids2[idx]);
 			}
 
 		} else {
-			assertEquals(name+" lens are not eq",source.length(), target.length());
+			assertEquals(source.length(), target.length(), name+" lens are not eq");
 			try(InputStream sourceIn = source.getInputStream()) {
 				try(InputStream targetIn  = target.getInputStream()) {
 					compare(name,sourceIn,targetIn);
@@ -264,11 +258,11 @@ public abstract class AbstractTestClass {
 		int ch = bin1.read();
 		int pos = 0;
 		while( ch > 0) {
-			assertEquals(name+" compare pos="+pos,ch, bin2.read());
+			assertEquals(ch, bin2.read(), name+" compare pos="+pos);
 			pos++;
 			ch = bin1.read();				
 		}
-		assertEquals(name+" compare pos="+pos,ch, bin2.read());
+		assertEquals(ch, bin2.read(), name+" compare pos="+pos);
 
 	}
 
@@ -323,8 +317,8 @@ public abstract class AbstractTestClass {
 	@Order(1)
 	public void testRoots() throws IOException {
 		FileSource [] roots = factory.listRoots();
-		assertNotNull("Roots are null",roots);
-		assertTrue("No roots files ",roots.length>0);
+		assertNotNull(roots, "Roots are null");
+		assertTrue(roots.length>0, "No roots files ");
 
 	}
 
@@ -332,13 +326,13 @@ public abstract class AbstractTestClass {
 	@Order(2)
 	public void replicateTestDir() throws IOException {
 		FileSource _localDir = FileSourceFactory.getDefaultFactory().createFileSource(localTestFileDirPath);
-		assertTrue("local test dir does not exist ="+_localDir,_localDir.isDirectory());
+		assertTrue(_localDir.isDirectory(), "local test dir does not exist ="+_localDir);
 
 		FileSource cacheDir = FileSourceFactory.getDefaultFactory().createFileSource(localCacheDirPath);
 		if( cacheDir.exists()) {
 			deleteAll(cacheDir);			
 		}
-		assertFalse("local cache dir already exists ="+cacheDir,cacheDir.exists());
+		assertFalse(cacheDir.exists(), "local cache dir already exists ="+cacheDir);
 
 		//  Make a copy of the local test directory
 		copy(_localDir,cacheDir);
