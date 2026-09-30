@@ -141,7 +141,7 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 			StringBuilder buf = new StringBuilder(factory.getTypeId()+":");
 			Properties p = factory.getConnectProperties();
 			for(String name : p.stringPropertyNames()) {
-				if(! "password".equalsIgnoreCase(name)) {
+				if(! factory.isSecretProperty(name)) {
 					buf.append(name+"="+p.getProperty(name)+";");
 				}
 			}
@@ -566,12 +566,24 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	}
 	
 	/**
-	 * Whether a connection property holds a secret, going by its name (case-insensitive):
-	 * it contains password, passwd, passphrase, secret, token or credential, or ends with
-	 * privatekey or sessionkey. Secrets are masked when edited and never saved by
-	 * {@link RecentFileMenu}, so factories should name such properties to match.
+	 * Whether the named connection property holds a secret (a password, a private key...).
+	 * Secrets are masked when edited, left out of session keys and never saved by
+	 * {@link RecentFileMenu}. A factory with secrets should override this to name them
+	 * exactly; the default guesses from the name with {@link #looksLikeSecret(String)}.
+	 *
+	 * @param name a property name from {@link #getConnectProperties()}
+	 * @return true if the value must not be shown or saved
 	 */
-	public static boolean isSecretProperty(String name) {
+	public boolean isSecretProperty(String name) {
+		return looksLikeSecret(name);
+	}
+
+	/**
+	 * A guess from the name alone (case-insensitive), used by factories that don't
+	 * override {@link #isSecretProperty(String)}: it contains password, passwd, passphrase,
+	 * secret, token or credential, or ends with privatekey or sessionkey.
+	 */
+	public static boolean looksLikeSecret(String name) {
 		if( name == null ) {
 			return false;
 		}

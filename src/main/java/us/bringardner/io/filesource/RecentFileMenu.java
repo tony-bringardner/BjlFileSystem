@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
@@ -55,10 +56,11 @@ import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
  * A "Recent Files" menu, saved with java.util.prefs.Preferences.
  * <p>
  * Each entry keeps its factory's connection properties so it can be reopened,
- * but secret values (see {@link FileSourceFactory#isSecretProperty(String)}) are
- * never saved: only their names are, with an empty value. When such an entry is
- * opened the user is asked for them (see {@link #setSecretPrompter(SecretPrompter)}),
- * and the answers are kept in memory for the rest of the session.
+ * but secret values (the factory decides which, see
+ * {@link FileSourceFactory#isSecretProperty(String)}) are never saved. A secret that
+ * had a value is saved as its name alone; when the entry is opened the user is asked
+ * for it (see {@link #setSecretPrompter(SecretPrompter)}), and the answer is kept in
+ * memory for the rest of the session. Secrets that were empty are left out.
  * <p>
  * Up to 1.0.1 the whole list, passwords included, was saved encrypted with a key
  * derived from the user name and a fixed IV, which anyone could reverse. That list
@@ -92,10 +94,14 @@ public class RecentFileMenu extends JMenu {
 		public String path;
 		public boolean isLocal=true;
 		private FileSource filex;
+		/** Properties the factory calls secret: never saved with a value. */
+		private final Set<String> secrets = new TreeSet<>();
+		/** Secrets this connection uses (they had a value): saved by name, asked for when opened. */
+		private final Set<String> needed = new TreeSet<>();
 
 		/**
-		 * Connects to the entry's factory and returns its file. Secret properties that
-		 * weren't saved must be filled in first; {@link RecentFileMenu#openEntry(ListEntry)} does that.
+		 * Connects to the entry's factory and returns its file. Secrets that weren't saved
+		 * must be filled in first; {@link RecentFileMenu#openEntry(ListEntry)} does that.
 		 */
 		public FileSource getFile() throws IOException {
 			if( filex == null ) {
@@ -113,33 +119,48 @@ public class RecentFileMenu extends JMenu {
 			return filex;
 		}
 
-		/** @return the names of secret properties that have no value, sorted */
+		/** @return true if the named property is a secret for this entry's factory */
+		public boolean isSecret(String name) {
+			return secrets.contains(name);
+		}
+
+		/** @return the secrets this entry needs that have no value yet, sorted */
 		public List<String> getMissingSecrets() {
 			List<String> ret = new ArrayList<>();
-			for(String name : prop.stringPropertyNames()) {
-				if( FileSourceFactory.isSecretProperty(name) && prop.getProperty(name).isEmpty() ) {
+			for(String name : needed) {
+				if( prop.getProperty(name, "").isEmpty() ) {
 					ret.add(name);
 				}
 			}
-			Collections.sort(ret);
 			return ret;
 		}
 
-		/** The saved form, id|name=value,...|path, with secret values left out. */
+		/**
+		 * The saved form: id|name=value,...,secretName,...|path. Secret values are never
+		 * written; a secret the connection needs is written as its name alone.
+		 */
 		public String toString() {
 			StringBuilder buf = new StringBuilder();
 			for(String name : new TreeSet<>(prop.stringPropertyNames())) {
-				String val = FileSourceFactory.isSecretProperty(name) ? "" : prop.getProperty(name);
+				if( secrets.contains(name) ) {
+					continue;
+				}
 				if(buf.length()>0) {
 					buf.append(COMMA);
 				}
-				buf.append(encode(name)).append(EQ).append(encode(val));
+				buf.append(encode(name)).append(EQ).append(encode(prop.getProperty(name)));
+			}
+			for(String name : needed) {
+				if(buf.length()>0) {
+					buf.append(COMMA);
+				}
+				buf.append(encode(name));
 			}
 
 			return id+VBAR+buf+VBAR+path;
 		}
 
-		/** Parses the saved form. */
+		/** Parses the saved form (and the one 1.0.1 and earlier saved, which held secret values). */
 		public ListEntry(String line) {
 			// the path is last and may itself contain '|'
 			String parts[] = line.split("\\"+VBAR, 3);
@@ -151,11 +172,31 @@ public class RecentFileMenu extends JMenu {
 			path = parts[2];
 			isLocal = FileProxyFactory.FACTORY_ID.equals(id);
 
+			FileSourceFactory factory = null;
 			for(String str : parts[1].split(COMMA)) {
+				if( str.isEmpty() ) {
+					continue;
+				}
 				int eq = str.indexOf(EQ);
-				if( eq > 0 ) {
-					// an empty value is kept: it marks a secret that wasn't saved
-					prop.setProperty(decode(str.substring(0, eq)), decode(str.substring(eq+1)));
+				if( eq < 0 ) {
+					// a name alone: a secret this connection needs
+					String name = decode(str);
+					secrets.add(name);
+					needed.add(name);
+				} else if( eq > 0 ) {
+					String name = decode(str.substring(0, eq));
+					String val = decode(str.substring(eq+1));
+					prop.setProperty(name, val);
+					// an old entry may hold a secret value: ask its factory which ones are secret
+					if( factory == null ) {
+						factory = FileSourceFactory.getFileSourceFactory(id);
+					}
+					if( factory != null ? factory.isSecretProperty(name) : FileSourceFactory.looksLikeSecret(name) ) {
+						secrets.add(name);
+						if( !val.isEmpty() ) {
+							needed.add(name);
+						}
+					}
 				}
 			}
 		}
@@ -170,7 +211,27 @@ public class RecentFileMenu extends JMenu {
 			if( p != null ) {
 				prop.putAll(p);
 			}
+			for(String name : prop.stringPropertyNames()) {
+				if( f.isSecretProperty(name) ) {
+					secrets.add(name);
+					if( !prop.getProperty(name).isEmpty() ) {
+						needed.add(name);
+					}
+				}
+			}
 			path = file.getCanonicalPath();
+		}
+
+		/** Carries over secrets entered this session that the factory no longer reports. */
+		void keepSecretsFrom(ListEntry old) {
+			for(String name : old.needed) {
+				String val = old.prop.getProperty(name, "");
+				if( !val.isEmpty() && prop.getProperty(name, "").isEmpty() ) {
+					prop.setProperty(name, val);
+					secrets.add(name);
+					needed.add(name);
+				}
+			}
 		}
 
 		static final String illegalChar =""+ AMP+NL+COMMA+EQ+TILDE+VBAR;
@@ -498,13 +559,7 @@ public class RecentFileMenu extends JMenu {
 		ListEntry entry = new ListEntry(file);
 		int idx = recentFiles.indexOf(entry);
 		if( idx >=0 ) {
-			ListEntry old = recentFiles.remove(idx);
-			// keep secrets entered this session if the factory doesn't report them
-			for(String name : old.prop.stringPropertyNames()) {
-				if( FileSourceFactory.isSecretProperty(name) && entry.prop.getProperty(name, "").isEmpty() ) {
-					entry.prop.setProperty(name, old.prop.getProperty(name));
-				}
-			}
+			entry.keepSecretsFrom(recentFiles.remove(idx));
 		}
 		recentFiles.add(0, entry);
 

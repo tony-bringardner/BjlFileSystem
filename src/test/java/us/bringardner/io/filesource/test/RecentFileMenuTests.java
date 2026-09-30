@@ -44,9 +44,14 @@ public class RecentFileMenuTests {
 	private static final String PASSWORD = "s3cret|,=&~";
 	private static final String USER = "b|o,b=&~";
 
-	/** A memory factory whose connection properties include secrets, like a remote one. */
+	/**
+	 * A memory factory whose connection properties include secrets, like a remote one.
+	 * It names its secrets exactly: "pin" isn't something the name guess would catch,
+	 * and "passphrase" is a secret it reports empty (not used by this connection).
+	 */
 	public static class SecretFactory extends MemoryFileSourceFactory {
 		private static final long serialVersionUID = 1L;
+		private static final List<String> SECRETS = Arrays.asList("password", "jdbcPassword", "pin", "passphrase");
 
 		@Override
 		public Properties getConnectProperties() {
@@ -54,7 +59,14 @@ public class RecentFileMenuTests {
 			p.setProperty("user", USER);
 			p.setProperty("password", PASSWORD);
 			p.setProperty("jdbcPassword", "pw2");
+			p.setProperty("pin", "4321");
+			p.setProperty("passphrase", "");
 			return p;
+		}
+
+		@Override
+		public boolean isSecretProperty(String name) {
+			return SECRETS.contains(name);
 		}
 	}
 
@@ -91,7 +103,11 @@ public class RecentFileMenuTests {
 		assertNotNull(saved);
 		assertFalse(saved.contains("s3cret"), saved);
 		assertFalse(saved.contains("pw2"), saved);
-		assertTrue(saved.contains("password=,") || saved.endsWith("password=|/dir|x/a,b.txt\n"), saved);
+		assertFalse(saved.contains("4321"), saved);
+		// needed secrets are saved by name only; the unused one not at all
+		assertTrue(saved.contains(",jdbcPassword,password,pin|"), saved);
+		assertFalse(saved.contains("password="), saved);
+		assertFalse(saved.contains("passphrase"), saved);
 		// kept in memory for this session
 		assertEquals(PASSWORD, menu.getRecentEntries().get(0).prop.getProperty("password"));
 	}
@@ -106,18 +122,18 @@ public class RecentFileMenuTests {
 		assertEquals("/dir|x/a,b.txt", entry.path);
 		assertEquals(USER, entry.prop.getProperty("user"));
 		assertFalse(entry.isLocal);
-		assertEquals(Arrays.asList("jdbcPassword", "password"), entry.getMissingSecrets());
+		assertEquals(Arrays.asList("jdbcPassword", "password", "pin"), entry.getMissingSecrets());
 
 		List<String> asked = new ArrayList<>();
 		menu.setSecretPrompter((e, name) -> { asked.add(name); return "typed"; });
 		FileSource file = menu.openEntry(entry);
 		assertNotNull(file);
 		assertEquals("/dir|x/a,b.txt", file.getCanonicalPath());
-		assertEquals(Arrays.asList("jdbcPassword", "password"), asked);
+		assertEquals(Arrays.asList("jdbcPassword", "password", "pin"), asked);
 
 		// asked once per session
 		menu.openEntry(entry);
-		assertEquals(2, asked.size());
+		assertEquals(3, asked.size());
 		assertFalse(node.get(RecentFileMenu.PREF_RECENT_LIST, "").contains("typed"));
 	}
 
@@ -129,14 +145,14 @@ public class RecentFileMenuTests {
 		ListEntry entry = menu.getRecentEntries().get(0);
 
 		assertNull(menu.openEntry(entry));
-		assertEquals(Arrays.asList("jdbcPassword", "password"), entry.getMissingSecrets());
+		assertEquals(Arrays.asList("jdbcPassword", "password", "pin"), entry.getMissingSecrets());
 	}
 
 	@Test
 	public void aFailedOpenForgetsTheSecretsEntered() throws IOException {
 		RecentFileMenu menu = new RecentFileMenu(node);
 		menu.setSecretPrompter((e, name) -> "wrong");
-		ListEntry entry = new ListEntry("nosuchfactory|host=h,password=|/x");
+		ListEntry entry = new ListEntry("nosuchfactory|host=h,password|/x");
 
 		assertThrows(IOException.class, () -> menu.openEntry(entry));
 		assertEquals(Arrays.asList("password"), entry.getMissingSecrets());
@@ -189,6 +205,8 @@ public class RecentFileMenuTests {
 		String saved = node.get(RecentFileMenu.PREF_RECENT_LIST, "");
 		assertTrue(saved.contains("user=bob"), saved);
 		assertFalse(saved.contains("hunter2"), saved);
+		// the memory factory doesn't declare secrets, so the name guess decides
+		assertTrue(saved.contains(",password|") || saved.contains("|password,") || saved.contains(",password,"), saved);
 	}
 
 	@Test
@@ -202,14 +220,33 @@ public class RecentFileMenuTests {
 	}
 
 	@Test
-	public void secretPropertyNames() {
+	public void theNameGuessIsOnlyADefault() {
 		for(String s : new String[] {"password", "PASSWORD", "jdbcPassword", "passwd", "keyPassphrase",
 				"privateKey", "sessionKey", "apiToken", "clientSecret", "credentials"}) {
-			assertTrue(FileSourceFactory.isSecretProperty(s), s);
+			assertTrue(FileSourceFactory.looksLikeSecret(s), s);
 		}
 		for(String s : new String[] {"user", "host", "port", "name", "privateKeyFileName", "", null}) {
-			assertFalse(FileSourceFactory.isSecretProperty(s), String.valueOf(s));
+			assertFalse(FileSourceFactory.looksLikeSecret(s), String.valueOf(s));
 		}
+		// a factory that doesn't say uses the guess; one that does is exact
+		assertTrue(new MemoryFileSourceFactory().isSecretProperty("password"));
+		assertTrue(new SecretFactory().isSecretProperty("pin"));
+		assertFalse(new SecretFactory().isSecretProperty("clientSecret"));
+	}
+
+	@Test
+	public void theFactoryDecidesWhatIsSecret() throws IOException {
+		ListEntry entry = new ListEntry(secretFile("/a.txt"));
+		assertTrue(entry.isSecret("pin"));
+		assertTrue(entry.isSecret("passphrase"));
+		assertFalse(entry.isSecret("user"));
+		String saved = entry.toString();
+		assertTrue(saved.startsWith("memory|"), saved);
+		assertTrue(saved.endsWith(",jdbcPassword,password,pin|/a.txt"), saved);
+		assertFalse(saved.contains("passphrase"), saved);
+		assertFalse(saved.contains("4321") || saved.contains("pw2") || saved.contains("s3cret"), saved);
+		// the non-secret value survives a round trip, separators and all
+		assertEquals(USER, new ListEntry(saved).prop.getProperty("user"));
 	}
 
 	/** How 1.0.1 and earlier saved the list. */
