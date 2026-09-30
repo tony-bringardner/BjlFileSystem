@@ -549,6 +549,16 @@ public interface FileSource extends Serializable, Comparable<Object> {
 		return 0L;
 	}
 
+	/**
+	 * Requests that this file (or empty directory) be deleted when its factory
+	 * disconnects or the virtual machine exits, whichever comes first. As
+	 * java.io.File.deleteOnExit(); see FileSourceFactory.deleteOnExit(FileSource)
+	 * for the details. Local files use java.io.File.deleteOnExit() itself.
+	 */
+	default void deleteOnExit() {
+		getFileSourceFactory().deleteOnExit(this);
+	}
+
 	/** Unallocated bytes on the storage, or 0 if unknown. As java.io.File.getFreeSpace(). */
 	default long getFreeSpace() throws IOException {
 		return 0L;

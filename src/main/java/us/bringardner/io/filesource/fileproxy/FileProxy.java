@@ -825,6 +825,12 @@ public class FileProxy implements FileSource {
 		return target.getPath();
 	}
 
+	/** java.io.File's own deleteOnExit: deleted when the VM exits. */
+	@Override
+	public void deleteOnExit() {
+		target.deleteOnExit();
+	}
+
 	/** As java.io.File: false if this FileProxy was made from a relative File. */
 	@Override
 	public boolean isAbsolute() {

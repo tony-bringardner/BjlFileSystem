@@ -539,6 +539,14 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 	 */
 	public  void disConnect() throws IOException {
 		try {
+			// While the connection is still open: delete what deleteOnExit registered
+			if( isConnected() ) {
+				deleteFilesRegisteredForExit();
+			}
+		} catch (RuntimeException e) {
+			logger.logError("Deleting deleteOnExit files for "+getTypeId(), e);
+		}
+		try {
 			disConnectImpl();
 		} finally {
 			synchronized (sessions) {
@@ -549,6 +557,93 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 					}
 				}
 				sessionId = -1;
+			}
+		}
+	}
+
+	//
+	// deleteOnExit support
+	//
+
+	/** Paths registered with deleteOnExit, in registration order. Guarded by pendingDeletes. */
+	private transient List<String> deleteOnExitPaths;
+	/** Factories with registered paths (identity, strongly held until deleted). */
+	private static final java.util.Set<FileSourceFactory> pendingDeletes =
+			Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+	private static boolean deleteHookInstalled = false;
+
+	/**
+	 * Requests that the file be deleted when this factory disconnects, or when
+	 * the virtual machine exits, whichever comes first. This is what
+	 * FileSource.deleteOnExit() calls; like java.io.File.deleteOnExit(), a
+	 * path is registered only once, files are deleted in reverse order of
+	 * registration (so a file registered after its directory goes first), a
+	 * directory is only deleted if it's empty, and failures are ignored.
+	 * <p>
+	 * Remote files are deleted at disConnect() because that's the last point
+	 * the connection is certainly open. Files of a factory that is never
+	 * disconnected are deleted by a shutdown hook, if it's still connected
+	 * then. Local files (FileProxy) use java.io.File.deleteOnExit() instead.
+	 *
+	 * @param file a FileSource created by this factory
+	 * @throws IllegalArgumentException if the file belongs to another factory
+	 */
+	public void deleteOnExit(FileSource file) {
+		if( file.getFileSourceFactory() != this ) {
+			throw new IllegalArgumentException(file.getAbsolutePath()+" belongs to another factory");
+		}
+		String path = file.getAbsolutePath();
+		synchronized (pendingDeletes) {
+			if( deleteOnExitPaths == null ) {
+				deleteOnExitPaths = new ArrayList<>();
+			}
+			if( !deleteOnExitPaths.contains(path) ) {
+				deleteOnExitPaths.add(path);
+			}
+			pendingDeletes.add(this);
+			if( !deleteHookInstalled ) {
+				Runtime.getRuntime().addShutdownHook(new Thread(FileSourceFactory::deleteAllRegisteredFiles, "FileSource deleteOnExit"));
+				deleteHookInstalled = true;
+			}
+		}
+	}
+
+	/** Deletes (and forgets) this factory's registered paths, newest first. */
+	private void deleteFilesRegisteredForExit() {
+		List<String> paths;
+		synchronized (pendingDeletes) {
+			paths = deleteOnExitPaths;
+			deleteOnExitPaths = null;
+			pendingDeletes.remove(this);
+		}
+		if( paths == null ) {
+			return;
+		}
+		for(int idx = paths.size() - 1; idx >= 0; idx--) {
+			try {
+				FileSource file = createFileSource(paths.get(idx));
+				if( file.exists() ) {
+					file.delete();   // a non-empty directory stays, as with java.io.File
+				}
+			} catch (Exception e) {
+				// ignored, as java.io.File.deleteOnExit does
+			}
+		}
+	}
+
+	/** The shutdown hook: every factory that still has registered files and is connected. */
+	private static void deleteAllRegisteredFiles() {
+		List<FileSourceFactory> factories;
+		synchronized (pendingDeletes) {
+			factories = new ArrayList<>(pendingDeletes);
+		}
+		for(FileSourceFactory factory : factories) {
+			try {
+				if( factory.isConnected() ) {
+					factory.deleteFilesRegisteredForExit();
+				}
+			} catch (Throwable e) {
+				// ignored: the VM is exiting
 			}
 		}
 	}
