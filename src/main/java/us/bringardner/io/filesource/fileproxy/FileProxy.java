@@ -825,6 +825,27 @@ public class FileProxy implements FileSource {
 		return target.getPath();
 	}
 
+	/** As java.io.File: false if this FileProxy was made from a relative File. */
+	@Override
+	public boolean isAbsolute() {
+		return target.isAbsolute();
+	}
+
+	@Override
+	public long getTotalSpace() {
+		return target.getTotalSpace();
+	}
+
+	@Override
+	public long getFreeSpace() {
+		return target.getFreeSpace();
+	}
+
+	@Override
+	public long getUsableSpace() {
+		return target.getUsableSpace();
+	}
+
 	/* (non-Javadoc)
 	 * @see us.bringardner.io.filesource.FileSource#isVersionSupported()
 	 */
