@@ -287,8 +287,13 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	}
 
 
-	/*
-	 * Return true if FileSource is a child of mine..  System dependent.  
+	/**
+	 * Return true if child is this FileSource or is located inside it.
+	 * <p>
+	 * Implementations MUST resolve "." and ".." (and, where the file system has them,
+	 * symbolic links) before comparing, and compare whole path elements, so that
+	 * dir/../x and dir2/x are not children of dir. Callers may use this as a
+	 * sandbox (containment) check.
 	 */
 	public boolean isChildOfMine(FileSource child)  throws IOException ;
 

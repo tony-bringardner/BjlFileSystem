@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 
@@ -69,5 +71,78 @@ public class PathLogicTests {
 		assertEquals("\\\\server\\share\\x.txt", f.createFileSource("\\\\server\\share\\x.txt").getAbsolutePath());
 		String drive = new File(".").getCanonicalPath().substring(0, 2);
 		assertEquals(drive+"\\foo", f.createFileSource("\\foo").getAbsolutePath());
+	}
+
+	// ------------------------------------------------------------------ escapes
+
+	/**
+	 * ".." must be resolved before comparing: root/../outside is NOT inside root.
+	 * isChildOfMine compared getAbsolutePath(), which keeps "..", so a plain prefix test
+	 * accepted it. Servers using isChildOfMine as a sandbox check could be escaped.
+	 */
+	@Test
+	public void fileProxyDotDotDoesNotEscape() throws IOException {
+		Path base = Files.createTempDirectory("childOfMine");
+		try {
+			Path root = Files.createDirectories(base.resolve("root/sub"));
+			root = root.getParent();
+			Files.write(base.resolve("outside.txt"), new byte[] { 1 });
+			FileSource r = new FileProxyFactory().createFileSource(root.toString());
+
+			for (String p : new String[] { "../outside.txt", "sub/../../outside.txt", "..", "a/../../../x", "sub/../.." }) {
+				assertFalse(r.isChildOfMine(r.getChild(p)), p + " must not be inside " + r);
+			}
+			for (String p : new String[] { "sub", "sub/../sub", "./sub/x.txt", "sub/..", "new/../also-new" }) {
+				assertTrue(r.isChildOfMine(r.getChild(p)), p + " is inside " + r);
+			}
+		} finally {
+			deleteTree(base);
+		}
+	}
+
+	/** A symbolic link inside the root that points outside it must not count as inside. */
+	@Test
+	public void fileProxySymlinkOutDoesNotEscape() throws IOException {
+		Path base = Files.createTempDirectory("childOfMine");
+		try {
+			Path root = Files.createDirectories(base.resolve("root"));
+			Path outside = Files.createDirectories(base.resolve("outside"));
+			Path sibling = Files.createDirectories(base.resolve("rootX")); // same prefix as root
+			try {
+				Files.createSymbolicLink(root.resolve("out"), outside);
+				Files.createSymbolicLink(root.resolve("sib"), sibling);
+			} catch (UnsupportedOperationException | IOException e) {
+				assumeTrue(false, "symbolic links not supported: " + e);
+			}
+			FileSource r = new FileProxyFactory().createFileSource(root.toString());
+			assertFalse(r.isChildOfMine(r.getChild("out")), "link to outside");
+			assertFalse(r.isChildOfMine(r.getChild("out/secret.txt")), "file through link to outside");
+			assertFalse(r.isChildOfMine(r.getChild("sib/x")), "link to same-prefix sibling");
+		} finally {
+			deleteTree(base);
+		}
+	}
+
+	@Test
+	public void memoryDotDotDoesNotEscape() throws IOException {
+		MemoryFileSourceFactory m = new MemoryFileSourceFactory();
+		FileSource root = m.createFileSource("/srv/root");
+		m.createFileSource("/srv/outside.txt");
+		for (String p : new String[] { "../outside.txt", "sub/../../outside.txt", "..", "a/../../../x" }) {
+			assertFalse(root.isChildOfMine(root.getChild(p)), p + " must not be inside /srv/root");
+		}
+		assertTrue(root.isChildOfMine(root.getChild("sub/../sub/file")));
+		assertFalse(root.isChildOfMine(m.createFileSource("/srv/rootX/file")), "same-prefix sibling");
+	}
+
+	private static void deleteTree(Path p) throws IOException {
+		if (Files.isDirectory(p, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+			try (java.util.stream.Stream<Path> kids = Files.list(p)) {
+				for (Path k : (Iterable<Path>) kids::iterator) {
+					deleteTree(k);
+				}
+			}
+		}
+		Files.deleteIfExists(p);
 	}
 }
