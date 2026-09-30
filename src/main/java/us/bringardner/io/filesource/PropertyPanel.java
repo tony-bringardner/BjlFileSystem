@@ -98,7 +98,7 @@ public class PropertyPanel extends JPanel implements IConnectionPropertiesEditor
 			p.add(new JLabel(displayName));
 			Component fld = new JTextField(val,10);
 
-			if( name.toLowerCase().contains("password")) {
+			if( FileSourceFactory.isSecretProperty(name)) {
 				fld = new JPasswordField(val,20);
 			}
 			map.put(name,fld);

@@ -565,9 +565,22 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 		
 	}
 	
-	/*
-	 * Return the type id (File / JbdcFile / just like URL prototype)
+	/**
+	 * Whether a connection property holds a secret, going by its name (case-insensitive):
+	 * it contains password, passwd, passphrase, secret, token or credential, or ends with
+	 * privatekey or sessionkey. Secrets are masked when edited and never saved by
+	 * {@link RecentFileMenu}, so factories should name such properties to match.
 	 */
+	public static boolean isSecretProperty(String name) {
+		if( name == null ) {
+			return false;
+		}
+		String n = name.toLowerCase(java.util.Locale.ROOT);
+		return n.contains("password") || n.contains("passwd") || n.contains("passphrase")
+				|| n.contains("secret") || n.contains("token") || n.contains("credential")
+				|| n.endsWith("privatekey") || n.endsWith("sessionkey");
+	}
+
 	/**
 	 * The one definition of "inside" used by {@link FileSource#isChildOfMine(FileSource)}.
 	 * <p>
@@ -610,6 +623,9 @@ public abstract class FileSourceFactory extends BaseObject implements URLStreamH
 		return other == this;
 	}
 
+	/*
+	 * Return the type id (File / JbdcFile / just like URL prototype)
+	 */
 	public abstract String getTypeId() ;
 
 
