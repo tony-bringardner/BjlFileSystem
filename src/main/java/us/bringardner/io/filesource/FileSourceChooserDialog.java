@@ -678,31 +678,61 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 	}
 
 
+	/** Copies a dropped or pasted file into dir; problems are shown to the user (BJL-24). */
 	public void copyToCurrentDir(FileSource dir, FileSource file) throws IOException {
-		if( !dir.isChildOfMine(file) && file.exists()) {
-
-			FileSource newFile = dir.getChild(file.getName());
-			if( file.isDirectory()) {
-				if(! newFile.mkdirs()) {
-					showError("Can't create directory "+newFile.getCanonicalPath(), null);
-				} else {
-					FileSource[] kids = file.listFiles();
-					if( kids != null ) {
-						for(FileSource f : kids) {
-							copyToCurrentDir(newFile, f);
-						}
-					}
-				}
-			} else {
-				OutputStream out = newFile.getOutputStream();
-				InputStream in = file.getInputStream();
-				byte[] data = in.readAllBytes();
-				out.write(data);
-				out.close();
-				in.close();															
-			}
-
+		try {
+			copyInto(dir, file);
+		} catch (IOException e) {
+			showError("Can't copy "+file.getName()+" to "+dir.getName(), e);
 		}
+	}
+
+	/**
+	 * Copies file (a directory with everything in it) into dir under its own name.
+	 * Nothing happens if the file doesn't exist or is already directly in dir.
+	 * <p>
+	 * Before BJL-24 the check was !dir.isChildOfMine(file), which skipped anything
+	 * anywhere below dir, and a directory could be copied into itself, which never ends.
+	 *
+	 * @return the copy, or null if nothing was copied
+	 * @throws IOException if a directory would be copied into itself or one of its
+	 *   own subdirectories, or the copy fails
+	 */
+	public static FileSource copyInto(FileSource dir, FileSource file) throws IOException {
+		if( !file.exists()) {
+			return null;
+		}
+		FileSource parent = file.getParentFile();
+		if( parent != null && sameFile(parent, dir)) {
+			// already there
+			return null;
+		}
+		if( file.isDirectory() && file.isChildOfMine(dir)) {
+			throw new IOException("Can't copy "+file.getAbsolutePath()+" into itself ("+dir.getAbsolutePath()+")");
+		}
+
+		FileSource newFile = dir.getChild(file.getName());
+		if( file.isDirectory()) {
+			if( !newFile.mkdirs() && !newFile.isDirectory()) {
+				throw new IOException("Can't create directory "+newFile.getAbsolutePath());
+			}
+			FileSource[] kids = file.listFiles();
+			if( kids != null ) {
+				for(FileSource kid : kids) {
+					copyInto(newFile, kid);
+				}
+			}
+		} else {
+			try(InputStream in = file.getInputStream(); OutputStream out = newFile.getOutputStream()) {
+				in.transferTo(out);
+			}
+		}
+		return newFile;
+	}
+
+	private static boolean sameFile(FileSource a, FileSource b) throws IOException {
+		return a.getFileSourceFactory().isSameFileSystem(b.getFileSourceFactory())
+				&& a.getCanonicalPath().equals(b.getCanonicalPath());
 	}
 
 
