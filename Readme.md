@@ -81,7 +81,7 @@ try (InputStream in = file.getInputStream()) {
 }
 ```
 
-All `FileSource` objects are created by a `FileSourceFactory`. Everything else (`getChild`, `getParentFile`, `listFiles`, `exists`, `mkdirs`, `delete`, `renameTo`, permissions, times, …) works much as it does on `java.io.File`.
+All `FileSource` objects are created by a `FileSourceFactory`. Everything else (`getChild`, `getParentFile`, `listFiles`, `exists`, `mkdirs`, `delete`, `renameTo`, permissions, times, …) works much as it does on `java.io.File`. To convert existing code, see [Migrating code from java.io.File](#migrating-code-from-javaiofile).
 
 ## Implementations
 
@@ -178,6 +178,129 @@ For remote file systems the lookup service only knows the connected user and tha
    ```
 
 The unit tests in `src/test/java`, starting with `AbstractTestClass`, are the best worked examples of what an implementation has to support.
+
+## Migrating code from java.io.File
+
+`FileSource` was designed to look like `java.io.File`, so most of a migration is mechanical: create files through a factory instead of `new File(...)`, change `File` to `FileSource` in your types, and replace `FileInputStream`/`FileOutputStream` with the file's own streams. Once that's done, the same code works on local files, in memory, or on an FTP/SFTP/JDBC file system, depending only on which factory created the `FileSource`.
+
+### Step by step
+
+1. **Get a factory once**, where your code decides where files live, and pass it (or a starting `FileSource`) down:
+
+   ```java
+   FileSourceFactory factory = FileSourceFactory.getDefaultFactory();   // local files, as before
+   ```
+
+2. **Replace `new File(...)`.** A path becomes `factory.createFileSource(path)`, and a child becomes `parent.getChild(name)`. Relative paths are resolved against `factory.getCurrentDirectory()`, which for local files is the process's working directory, as with `java.io.File`.
+
+3. **Change `File` to `FileSource`** in fields, parameters and return types. Start at the lowest-level methods and work outward; see [Mixing both during a migration](#mixing-both-during-a-migration) to convert at the edges while you go.
+
+4. **Handle `IOException`.** Unlike `java.io.File`, methods such as `exists()`, `isDirectory()`, `length()`, `listFiles()` and `getParentFile()` declare `IOException`, because on a remote file system each one may be a network call. Most methods that used a `File` already throw `IOException`, so usually this only means adding `throws IOException` to a few more signatures.
+
+5. **Replace the stream classes** as in the table below.
+
+### Equivalents
+
+| `java.io.File` code | `FileSource` code |
+|---|---|
+| `new File("/data/in.txt")` | `factory.createFileSource("/data/in.txt")` |
+| `new File(dir, "in.txt")` | `dir.getChild("in.txt")` |
+| `file.getParentFile()`, `getName()`, `getParent()`, `getAbsolutePath()`, `getCanonicalPath()` | Same names |
+| `file.getPath()` | `file.getAbsolutePath()` (a `FileSource` has no relative form) |
+| `exists()`, `isFile()`, `isDirectory()`, `isHidden()`, `length()`, `lastModified()` | Same names (they declare `IOException`) |
+| `mkdir()`, `mkdirs()`, `createNewFile()`, `delete()` | Same names |
+| `list()`, `listFiles()` | Same names |
+| `listFiles(FileFilter)`, `list(FilenameFilter)` | `listFiles(FileSourceFilter)`, `list(FileSourceFilter)` (see the example below) |
+| `canRead()`, `canWrite()`, `canExecute()`, `setReadable(...)`, `setWritable(...)`, `setExecutable(...)`, `setReadOnly()` | Same names, plus per-class ones such as `setGroupWritable(...)` and `canOtherRead()` |
+| `file.setLastModified(time)` | `file.setLastModifiedTime(time)` |
+| `file.renameTo(dest)` | `file.renameTo(dest)`, where `dest` is a `FileSource` from the same factory. It never replaces an existing file (see [Behaviour worth knowing](#behaviour-worth-knowing)). |
+| `File.listRoots()` | `factory.listRoots()` |
+| `File.separatorChar`, `File.pathSeparatorChar` | `factory.getSeperatorChar()`, `factory.getPathSeperatorChar()` |
+| `file.toURI()`, `file.toURL()` | `file.toURL()`, a [`filesource:` URL](#urls) that works for every implementation |
+| `file.toPath()` | `new FileSourcePath(file)`, for use with `java.nio.file.Files` ([java.nio.file support](#javaniofile-support)) |
+| `new FileInputStream(file)` | `file.getInputStream()` |
+| `new FileOutputStream(file)`, `new FileOutputStream(file, true)` | `file.getOutputStream()`, `file.getOutputStream(true)` |
+| `new FileReader(file, charset)` | `new FileSourceReader(file, charset)` |
+| `new FileWriter(file, charset)` | `new FileSourceWriter(file, charset)` |
+| `new FileWriter(file, charset, true)` (append) | `new OutputStreamWriter(file.getOutputStream(true), charset)` |
+| `new RandomAccessFile(file, mode)` | `file.getRandomAccessStream(mode)` (see [Random access](#random-access)) |
+| `Files.readAllBytes(file.toPath())` | `Files.readAllBytes(new FileSourcePath(file))`, or read `file.getInputStream()` |
+
+Not available on `FileSource`: `deleteOnExit()`, `File.createTempFile(...)` (create a uniquely named child and call `createNewFile()`), `isAbsolute()` (every `FileSource` is absolute), and `getFreeSpace()`/`getTotalSpace()`/`getUsableSpace()` (use `Files.getFileStore(new FileSourcePath(file))`).
+
+### Example
+
+Before:
+
+```java
+long totalLogSize(File dir) {
+    long total = 0;
+    File[] logs = dir.listFiles(f -> f.getName().endsWith(".log"));
+    if (logs != null) {
+        for (File f : logs) {
+            total += f.length();
+        }
+    }
+    return total;
+}
+```
+
+After:
+
+```java
+long totalLogSize(FileSource dir) throws IOException {
+    long total = 0;
+    FileSource[] logs = dir.listFiles(new FileSourceFilter() {
+        public boolean accept(FileSource f) { return f.getName().endsWith(".log"); }
+        public String getDescription()      { return "*.log"; }
+    });
+    if (logs != null) {
+        for (FileSource f : logs) {
+            total += f.length();
+        }
+    }
+    return total;
+}
+```
+
+`FileSourceFilter` has two methods (`getDescription()` is used by the file chooser dialog), so it can't be written as a lambda; an anonymous class or a small named class does the job.
+
+The caller changes from `totalLogSize(new File("/var/log/app"))` to `totalLogSize(factory.createFileSource("/var/log/app"))`, and now works unchanged against a memory, FTP, SFTP or JDBC factory.
+
+### Mixing both during a migration
+
+You don't have to convert everything at once. At the boundary between converted and unconverted code:
+
+```java
+// java.io.File -> FileSource (local files)
+FileSource fs = new FileProxy(file, FileSourceFactory.getDefaultFactory());
+// or: FileSourceFactory.getDefaultFactory().createFileSource(file.getAbsolutePath())
+
+// FileSource -> java.io.File (only meaningful for local files)
+File back = (fs instanceof FileProxy) ? new File(fs.getAbsolutePath()) : null;
+```
+
+### Things that behave differently
+
+- **Checked exceptions**: see step 4. A method that returned `false` for a missing file still does (`exists()`, `delete()`), but a failed connection is an `IOException` rather than a silent `false`.
+- **`renameTo`** needs a destination from the same factory, returns `false` if the destination exists, and throws the underlying `IOException` for other failures, instead of returning `false` for everything.
+- **`equals`** compares absolute paths within one implementation; a local `FileSource` never equals a memory one with the same path.
+- **Remote calls cost time.** On FTP, SFTP or JDBC, `length()`, `lastModified()` and friends may each be a round trip. Keep results in a local variable inside loops instead of asking the same file repeatedly; call `refresh()` when you need fresh values.
+
+### Testing converted code
+
+Converted code can be tested against the in-memory file system instead of real directories:
+
+```java
+FileSourceFactory memory = FileSourceFactory.getFileSourceFactory("memory");
+memory.connect();
+FileSource dir = memory.createFileSource("/logs");
+dir.mkdirs();
+try (OutputStream out = dir.getChild("a.log").getOutputStream()) {
+    out.write(new byte[100]);
+}
+assertEquals(100, totalLogSize(dir));
+```
 
 ## Behaviour worth knowing
 
