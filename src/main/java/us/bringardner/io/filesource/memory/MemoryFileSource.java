@@ -1241,8 +1241,9 @@ public class MemoryFileSource implements FileSource {
 	public boolean setGroup(GroupPrincipal group1) throws IOException {
 		boolean ret = false;
 		if (group1 instanceof FileSourceGroup) {
+			// was also getOwner().setGroup(group), which changed the owner's
+			// primary group, and so the group of every file it owns
 			group = (FileSourceGroup) group1;
-			getOwner().setGroup(group);
 			ret = true;
 		}
 		

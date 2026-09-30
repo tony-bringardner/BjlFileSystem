@@ -254,14 +254,16 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 		@Override
 		public void setTimes(FileTime lastModifiedTime, FileTime lastAccessTime, FileTime createTime) throws IOException {
+			// The FileSource setters return false on failure; that used to be
+			// ignored, so e.g. Files.setLastModifiedTime could silently do nothing.
 			if( lastModifiedTime != null ) {
-				file.setLastModifiedTime(lastModifiedTime.toMillis());
+				check(file, file.setLastModifiedTime(lastModifiedTime.toMillis()), "lastModifiedTime");
 			}
 			if( lastAccessTime != null ) {
-				file.setLastAccessTime(lastAccessTime.toMillis());
+				check(file, file.setLastAccessTime(lastAccessTime.toMillis()), "lastAccessTime");
 			}
 			if( createTime != null ) {
-				file.setCreateTime(createTime.toMillis());
+				check(file, file.setCreateTime(createTime.toMillis()), "creationTime");
 			}
 
 		}
@@ -273,7 +275,10 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 		@Override
 		public void setOwner(UserPrincipal owner) throws IOException {
-			file.setOwner(owner);
+			if( owner == null ) {
+				throw new NullPointerException("owner");
+			}
+			check(file, file.setOwner(owner), "owner");
 		}
 
 		@Override
@@ -289,12 +294,11 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 		@Override
 		public void setPermissions(Set<PosixFilePermission> perms) throws IOException {
+			if( perms == null ) {
+				throw new NullPointerException("perms");
+			}
 			for(PosixFilePermission p : PosixFilePermission.values()) {
-				if( perms.contains(p)) {
-					setPermission(file,p, true);
-				} else {
-					setPermission(file,p, false);
-				}
+				check(file, setPermission(file,p, perms.contains(p)), "permissions");
 			}
 
 		}
@@ -303,7 +307,10 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 		@Override
 		public void setGroup(GroupPrincipal group) throws IOException {
-			file.setGroup(group);
+			if( group == null ) {
+				throw new NullPointerException("group");
+			}
+			check(file, file.setGroup(group), "group");
 		}
 
 	}
@@ -572,46 +579,30 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 	}
 
 
-	private void setPermission(FileSource file,PosixFilePermission p, boolean b) throws IOException {
+	private static boolean setPermission(FileSource file,PosixFilePermission p, boolean b) throws IOException {
 		if( p == null ) {
 			throw new NullPointerException("Permission may NOT be null");
 		}
 
-
 		switch (p) {
-		case OWNER_READ: 
-			file.setOwnerReadable(b);
-			break;
-		case OWNER_WRITE: 
-			file.setOwnerWritable(b);
-			break;
-		case OWNER_EXECUTE:
-			file.setOwnerExecutable(b);
-			break;
-
-		case GROUP_READ: 
-			file.setGroupReadable(b);
-			break;
-		case GROUP_WRITE: 
-			file.setGroupWritable(b);
-			break;
-		case GROUP_EXECUTE: 
-			file.setGroupExecutable(b);
-			break;
-
-		case OTHERS_READ: 
-			file.setOtherReadable(b);
-			break;
-		case OTHERS_WRITE: 
-			file.setOtherWritable(b);
-			break;
-		case OTHERS_EXECUTE: 
-			file.setOtherExecutable(b);
-			break;
-
+		case OWNER_READ:     return file.setOwnerReadable(b);
+		case OWNER_WRITE:    return file.setOwnerWritable(b);
+		case OWNER_EXECUTE:  return file.setOwnerExecutable(b);
+		case GROUP_READ:     return file.setGroupReadable(b);
+		case GROUP_WRITE:    return file.setGroupWritable(b);
+		case GROUP_EXECUTE:  return file.setGroupExecutable(b);
+		case OTHERS_READ:    return file.setOtherReadable(b);
+		case OTHERS_WRITE:   return file.setOtherWritable(b);
+		case OTHERS_EXECUTE: return file.setOtherExecutable(b);
+		default:             return false;
 		}
+	}
 
-
+	/** Turns a FileSource setter's "false" into the IOException java.nio callers expect. */
+	private static void check(FileSource file, boolean ok, String attribute) throws IOException {
+		if( !ok ) {
+			throw new FileSystemException(file.getAbsolutePath(), null, "Can't set "+attribute);
+		}
 	}
 
 
@@ -941,57 +932,181 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 	public Map<String, Object> readAttributes(Path path, String attributes, LinkOption... options) throws IOException {
 		Map<String, Object>  ret = new HashMap<String, Object>();
 
-		Class<?> cls = BasicFileAttributes.class;
-		Object attr =  readAttributes(path, BasicFileAttributes.class, options);
-		String val = null;
-		String [] parts = attributes.split("[:]");
-		if( parts.length >= 2) {
-			val= parts[1];
-			if(parts[0].toLowerCase().equals("posix")) {
-
-				attr =  readAttributes(path, PosixFileAttributes.class, options);
-				cls = PosixFileAttributes.class;   // interface methods, including the basic ones
-			}
-		} else {
-			val = attributes;
+		int colon = attributes.indexOf(':');
+		String view = colon < 0 ? "basic" : attributes.substring(0, colon);
+		String val = attributes.substring(colon + 1);
+		if( val.isEmpty() ) {
+			throw new IllegalArgumentException("No attributes named in '"+attributes+"'");
 		}
 
+		Class<?> cls;
+		Object attr;
+		switch (view) {
+		case "basic":
+			cls = BasicFileAttributes.class;
+			attr =  readAttributes(path, BasicFileAttributes.class, options);
+			break;
+		case "posix":
+			cls = PosixFileAttributes.class;   // interface methods, including the basic ones
+			attr =  readAttributes(path, PosixFileAttributes.class, options);
+			break;
+		case "owner":
+			// FileOwnerAttributeView has one attribute
+			for(String name : val.split("[,]")) {
+				if( !name.equals("*") && !name.equals("owner")) {
+					throw new IllegalArgumentException("'"+name+"' not recognized");
+				}
+			}
+			ret.put("owner", resolve(path, options).getOwner());
+			return ret;
+		default:
+			// was: silently treated as "basic"
+			throw new UnsupportedOperationException("View '"+view+"' is not available");
+		}
 
-
-		parts = val.split("[,]");
-		for(String name : parts) {
-			try {
-				if( name.contains("*")) {
-					for(Method m : cls.getMethods()) {
-						try {
-							m.setAccessible(true);
-							Object v = m.invoke(attr);
-							if( v != null ) {
-								ret.put(m.getName(), v);
-							}
-						} catch (Exception e) {
+		for(String name : val.split("[,]")) {
+			if( name.equals("*")) {
+				for(Method m : cls.getMethods()) {
+					if( m.getParameterCount() == 0 ) {
+						Object v = invoke(m, attr);
+						if( v != null ) {
+							ret.put(m.getName(), v);
 						}
 					}
-				} else {	
-					Method m = cls.getMethod(name);
-					if( m != null ) {
-						m.setAccessible(true);
-						Object v = m.invoke(attr);
-						ret.put(name, v);
-					}					
 				}
-			} catch (Throwable e) {
-				// bad name, skip it
+			} else {
+				Method m;
+				try {
+					m = cls.getMethod(name);
+				} catch (NoSuchMethodException e) {
+					// was: skipped silently, so a typo returned an empty map
+					throw new IllegalArgumentException("'"+name+"' not recognized");
+				}
+				ret.put(name, invoke(m, attr));
 			}
 		}
 
 		return ret;
 	}
 
+	private static Object invoke(Method m, Object attr) throws IOException {
+		try {
+			return m.invoke(attr);
+		} catch (java.lang.reflect.InvocationTargetException e) {
+			Throwable cause = e.getCause();
+			if( cause instanceof IOException ) {
+				throw (IOException) cause;
+			}
+			if( cause instanceof RuntimeException ) {
+				throw (RuntimeException) cause;
+			}
+			throw new IOException(cause);
+		} catch (IllegalAccessException e) {
+			throw new IllegalStateException(e);
+		}
+	}
+
+	/**
+	 * Supports the "basic", "posix" and "owner" views, e.g.
+	 * Files.setAttribute(path, "lastModifiedTime", time) or
+	 * Files.setAttribute(path, "posix:permissions", perms).
+	 * (It used to throw RuntimeException("setAttribute Not implemented").)
+	 */
+	@SuppressWarnings("unchecked")
 	@Override
 	public void setAttribute(Path path, String attribute, Object value, LinkOption... options) throws IOException {
-		// Not implemented
-		throw new RuntimeException("setAttribute Not implemented");
+		validate(path);
+		int colon = attribute.indexOf(':');
+		String view = colon < 0 ? "basic" : attribute.substring(0, colon);
+		String name = attribute.substring(colon + 1);
+		if( !view.equals("basic") && !view.equals("posix") && !view.equals("owner") ) {
+			throw new UnsupportedOperationException("View '"+view+"' is not available");
+		}
+		FileSourcePosixFileAttributeView v = new FileSourcePosixFileAttributeView(resolve(path, options), describesLink(path, options));
+		try {
+			if( view.equals("owner") ) {
+				if( !name.equals("owner") ) {
+					throw new IllegalArgumentException("'"+attribute+"' not recognized");
+				}
+				v.setOwner((UserPrincipal) value);
+				return;
+			}
+			switch (name) {
+			case "lastModifiedTime": v.setTimes((FileTime) value, null, null); return;
+			case "lastAccessTime":   v.setTimes(null, (FileTime) value, null); return;
+			case "creationTime":     v.setTimes(null, null, (FileTime) value); return;
+			default:
+			}
+			if( view.equals("posix") ) {
+				switch (name) {
+				case "permissions": v.setPermissions((Set<PosixFilePermission>) value); return;
+				case "owner":       v.setOwner((UserPrincipal) value); return;
+				case "group":       v.setGroup((GroupPrincipal) value); return;
+				default:
+				}
+			}
+		} catch (ClassCastException e) {
+			throw new ClassCastException("Wrong value type for '"+attribute+"': "+(value == null ? null : value.getClass().getName()));
+		}
+		throw new IllegalArgumentException("'"+attribute+"' not recognized");
+	}
+
+	/**
+	 * Creates a symbolic link with the factory's createSymbolicLink. A relative
+	 * target is resolved against the link's directory, as for the default file
+	 * system. (Not overridden before, so this threw UnsupportedOperationException.)
+	 */
+	@Override
+	public void createSymbolicLink(Path link, Path target, FileAttribute<?>... attrs) throws IOException {
+		validate(link, target);
+		if( attrs != null && attrs.length > 0 ) {
+			throw new UnsupportedOperationException("Initial file attributes are not supported");
+		}
+		FileSource linkFile = fileOf(link);
+		if( linkFile.exists() || linkFile.getLinkedTo() != null ) {
+			throw new FileAlreadyExistsException(link.toString());
+		}
+		Path t = target.isAbsolute() || link.getParent() == null ? target : link.getParent().resolve(target);
+		FileSource targetFile = fileOf(t);
+		if( targetFile.getFileSourceFactory() != linkFile.getFileSourceFactory() ) {
+			throw new ProviderMismatchException("Link and target are in different file systems");
+		}
+		linkFile.getFileSourceFactory().createSymbolicLink(linkFile, targetFile);
+	}
+
+	@Override
+	public void createLink(Path link, Path existing) throws IOException {
+		validate(link, existing);
+		FileSource linkFile = fileOf(link);
+		FileSource existingFile = fileOf(existing);
+		if( linkFile.exists() || linkFile.getLinkedTo() != null ) {
+			throw new FileAlreadyExistsException(link.toString());
+		}
+		if( !existingFile.exists() ) {
+			throw new NoSuchFileException(existing.toString());
+		}
+		if( existingFile.getFileSourceFactory() != linkFile.getFileSourceFactory() ) {
+			throw new ProviderMismatchException("Link and target are in different file systems");
+		}
+		linkFile.getFileSourceFactory().createLink(linkFile, existingFile);
+	}
+
+	/**
+	 * Returns the link's target as the FileSource reports it (for local files,
+	 * resolved against the link's directory). Not overridden before.
+	 */
+	@Override
+	public Path readSymbolicLink(Path link) throws IOException {
+		validate(link);
+		FileSource file = fileOf(link);
+		FileSource target = file.getLinkedTo();
+		if( target == null ) {
+			if( !file.exists() ) {
+				throw new NoSuchFileException(link.toString());
+			}
+			throw new java.nio.file.NotLinkException(link.toString());
+		}
+		return new FileSourcePath(target);
 	}
 
 

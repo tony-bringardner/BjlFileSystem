@@ -61,6 +61,7 @@ import javax.swing.ProgressMonitor;
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.FileSourceFilter;
+import us.bringardner.io.filesource.FileSourcePrinciple;
 import us.bringardner.io.filesource.FileSourceRandomAccessStream;
 import us.bringardner.io.filesource.IRandomAccessStream;
 import us.bringardner.io.filesource.ISeekableInputStream;
@@ -977,7 +978,9 @@ public class FileProxy implements FileSource {
 				if( at.isSymbolicLink()) {
 					Path newPath = Files.readSymbolicLink(path);
 					if( newPath != null) {
-						ret = new FileProxy(newPath.toFile(), theCreator);
+						// A relative target is relative to the link's directory,
+						// not the process's current directory as it used to be.
+						ret = new FileProxy(path.resolveSibling(newPath).toFile(), theCreator);
 					}
 
 				}
@@ -1122,6 +1125,14 @@ public class FileProxy implements FileSource {
 	@Override
 	public boolean setGroup(GroupPrincipal group) throws IOException {
 		try {
+			if( group instanceof FileSourcePrinciple ) {
+				// e.g. the group getGroup() returned: the OS only accepts its own principals
+				try {
+					group = target.toPath().getFileSystem().getUserPrincipalLookupService().lookupPrincipalByGroupName(group.getName());
+				} catch (IOException | UnsupportedOperationException e) {
+					return false;
+				}
+			}
 			return permissions().setGroup(group);
 		} finally {
 			this.group = null;   // cached value is stale now (it was never cleared)
@@ -1131,6 +1142,10 @@ public class FileProxy implements FileSource {
 	@Override
 	public boolean setOwner(UserPrincipal owner) throws IOException {
 		try {
+			if( owner instanceof FileSourcePrinciple ) {
+				// e.g. the owner getOwner() returned: the OS only accepts its own principals
+				owner = target.toPath().getFileSystem().getUserPrincipalLookupService().lookupPrincipalByName(owner.getName());
+			}
 			FileOwnerAttributeView v = Files.getFileAttributeView(target.toPath(), FileOwnerAttributeView.class);
 			v.setOwner(owner);
 		} catch (Exception e) {

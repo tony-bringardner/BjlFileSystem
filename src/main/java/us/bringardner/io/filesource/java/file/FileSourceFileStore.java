@@ -25,15 +25,25 @@
  */
 package us.bringardner.io.filesource.java.file;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileStore;
+import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileOwnerAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import us.bringardner.io.filesource.FileSource;
+import us.bringardner.io.filesource.fileproxy.FileProxy;
 
 public class FileSourceFileStore extends FileStore {
 
+	/** The attribute views FileSourceFileSystemProvider supports. */
+	static final Set<String> VIEWS = Collections.unmodifiableSet(new LinkedHashSet<String>(java.util.Arrays.asList("basic", "posix", "owner")));
 	
 	private FileSource file;
 
@@ -43,7 +53,24 @@ public class FileSourceFileStore extends FileStore {
 
 	@Override
 	public String name() {
-		return toString();
+		// was toString(), i.e. "FileSourceFileStore@1b6d3586"
+		String title = null;
+		try {
+			title = file.getFileSourceFactory().getTitle();
+		} catch (RuntimeException e) {
+			// fall through
+		}
+		return title != null ? title : type();
+	}
+
+	@Override
+	public String toString() {
+		return name()+" ("+type()+")";
+	}
+
+	/** Local files report the real disk; other file systems can't tell. */
+	private File local() {
+		return file instanceof FileProxy ? new File(file.getAbsolutePath()) : null;
 	}
 
 	@Override
@@ -58,27 +85,33 @@ public class FileSourceFileStore extends FileStore {
 
 	@Override
 	public long getTotalSpace() throws IOException {
-		return Long.MAX_VALUE;
+		File f = local();
+		return f != null ? f.getTotalSpace() : Long.MAX_VALUE;
 	}
 
 	@Override
 	public long getUsableSpace() throws IOException {
-		return Long.MAX_VALUE;
+		File f = local();
+		return f != null ? f.getUsableSpace() : Long.MAX_VALUE;
 	}
 
 	@Override
 	public long getUnallocatedSpace() throws IOException {
-		return Long.MAX_VALUE;
+		File f = local();
+		return f != null ? f.getFreeSpace() : Long.MAX_VALUE;
 	}
 
+	/** Was true for any view, e.g. ACL or DOS, which the provider doesn't support. */
 	@Override
 	public boolean supportsFileAttributeView(Class<? extends FileAttributeView> type) {
-		return true;
+		return type == BasicFileAttributeView.class
+				|| type == PosixFileAttributeView.class
+				|| type == FileOwnerAttributeView.class;
 	}
 
 	@Override
 	public boolean supportsFileAttributeView(String name) {
-		return true;
+		return VIEWS.contains(name);
 	}
 
 	@Override
@@ -89,8 +122,13 @@ public class FileSourceFileStore extends FileStore {
 
 	@Override
 	public Object getAttribute(String attribute) throws IOException {
-		// Not implemented
-		return null;
+		switch (attribute) {
+		case "totalSpace":       return getTotalSpace();
+		case "usableSpace":      return getUsableSpace();
+		case "unallocatedSpace": return getUnallocatedSpace();
+		default:
+			throw new UnsupportedOperationException("'"+attribute+"' is not supported");
+		}
 	}
 
 }

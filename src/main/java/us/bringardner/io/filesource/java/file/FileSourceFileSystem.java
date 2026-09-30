@@ -32,18 +32,23 @@ import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
-import java.nio.file.WatchKey;
+import java.nio.file.FileSystems;
 import java.nio.file.WatchService;
+import java.nio.file.attribute.GroupPrincipal;
+import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.attribute.UserPrincipalLookupService;
+import java.nio.file.attribute.UserPrincipalNotFoundException;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
+import us.bringardner.io.filesource.FileSourceGroup;
+import us.bringardner.io.filesource.FileSourceUser;
+import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
 
 public class FileSourceFileSystem extends FileSystem {
 
@@ -122,16 +127,22 @@ public class FileSourceFileSystem extends FileSystem {
 		return ret;
 	}
 
+	/**
+	 * One store per root directory. (Used to throw RuntimeException.)
+	 */
 	@Override
 	public Iterable<FileStore> getFileStores() {
-		throw new RuntimeException("Not implimented");
-		
+		List<FileStore> ret = new ArrayList<FileStore>();
+		for(Path root : getRootDirectories()) {
+			ret.add(new FileSourceFileStore(((FileSourcePath) root).getFileSource()));
+		}
+		return ret;
 	}
 
+	/** The views FileSourceFileSystemProvider supports. (Used to throw RuntimeException.) */
 	@Override
 	public Set<String> supportedFileAttributeViews() {
-		// Not implemented
-		throw new RuntimeException("Not implimented");
+		return FileSourceFileStore.VIEWS;
 	}
 
 	@Override
@@ -195,40 +206,50 @@ public class FileSourceFileSystem extends FileSystem {
 		return path -> pattern.matcher(path.toString()).matches();
 	}
 
+	/**
+	 * Local files use the operating system's lookup, so the principals work
+	 * with Files.setOwner. Other file systems only know the connected user
+	 * (whoAmI) and that user's groups; any other name throws
+	 * UserPrincipalNotFoundException. (Used to throw RuntimeException.)
+	 */
 	@Override
 	public UserPrincipalLookupService getUserPrincipalLookupService() {
-		// Not implemented
-		throw new RuntimeException("Not implimented");
-	}
+		if( factory instanceof FileProxyFactory ) {
+			return FileSystems.getDefault().getUserPrincipalLookupService();
+		}
+		return new UserPrincipalLookupService() {
+			@Override
+			public UserPrincipal lookupPrincipalByName(String name) throws IOException {
+				FileSourceUser me = factory.whoAmI();
+				if( me != null && name.equals(me.getName()) ) {
+					return me;
+				}
+				throw new UserPrincipalNotFoundException(name);
+			}
 
-	@Override
-	public WatchService newWatchService() throws IOException {
-		return new WatchService() {
-			
 			@Override
-			public WatchKey take() throws InterruptedException {
-				// Not implemented
-				throw new RuntimeException("Not implimented");
-			}
-			
-			@Override
-			public WatchKey poll(long timeout, TimeUnit unit) throws InterruptedException {
-				// Not implemented
-				throw new RuntimeException("Not implimented");
-			}
-			
-			@Override
-			public WatchKey poll() {
-				// Not implemented
-				throw new RuntimeException("Not implimented");
-			}
-			
-			@Override
-			public void close() throws IOException {
-				// Not implemented
-				throw new RuntimeException("Not implimented");
+			public GroupPrincipal lookupPrincipalByGroupName(String group) throws IOException {
+				FileSourceUser me = factory.whoAmI();
+				if( me != null ) {
+					for(FileSourceGroup g : me.getGroups().values()) {
+						if( group.equals(g.getName()) ) {
+							return g;
+						}
+					}
+				}
+				throw new UserPrincipalNotFoundException(group);
 			}
 		};
+	}
+
+	/**
+	 * Not supported: FileSources have no change notification. This throws
+	 * here, as the FileSystem contract allows, rather than returning a
+	 * WatchService whose every method (even close) threw RuntimeException.
+	 */
+	@Override
+	public WatchService newWatchService() throws IOException {
+		throw new UnsupportedOperationException("WatchService is not supported");
 	}
 
 	

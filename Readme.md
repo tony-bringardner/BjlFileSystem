@@ -163,7 +163,9 @@ try (DirectoryStream<Path> ds = Files.newDirectoryStream(new FileSourcePath(dir)
 Path fromUri = Paths.get(new URI("filesource:/tmp/example/hello.txt?sourcetype=fileproxy"));
 ```
 
-Supported: streams and byte channels (`readAllBytes`, `readString`, `lines`, `write`, `newByteChannel`), the standard open options, `copy`, `move`, `delete`, `createDirectory`, `exists`/`notExists`/`isReadable`, basic and POSIX attributes, directory streams, and `glob:`/`regex:` path matchers. Not supported: `FileChannel` and `AsynchronousFileChannel`, watch services, and listing file stores.
+Supported: streams and byte channels (`readAllBytes`, `readString`, `lines`, `write`, `newByteChannel`), the standard open options, `copy`, `move`, `delete`, `createDirectory`, `exists`/`notExists`/`isReadable`, basic, POSIX and owner attributes (read with `readAttributes`, set with `setAttribute` or the typed setters), symbolic and hard links (`createSymbolicLink`, `createLink`, `readSymbolicLink`), directory streams, file stores, a user/group lookup service, and `glob:`/`regex:` path matchers. Not supported: `FileChannel` and `AsynchronousFileChannel`, watch services (`newWatchService` throws `UnsupportedOperationException`), and `ATOMIC_MOVE`.
+
+For remote file systems the lookup service only knows the connected user and that user's groups, and a file store's space figures are `Long.MAX_VALUE` because the size isn't known; local files use the operating system's lookup and report real disk space.
 
 ## Writing your own implementation
 
