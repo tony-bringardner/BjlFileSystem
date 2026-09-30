@@ -193,6 +193,8 @@ mvn test
 
 The tests use JUnit 5. A few only run on Windows, or when your user belongs to more than one group, and are skipped otherwise.
 
+`mvn test` also measures test coverage with [JaCoCo](https://www.jacoco.org/jacoco/); open `target/site/jacoco/index.html` for the report.
+
 ## Why not just java.nio.file?
 
 I was very excited when `java.nio.file.FileSystem` arrived in Java SE 7 (July 2011). But in my opinion its API is overly complex and nowhere near as simple as `java.io.File`, so it falls short of what I'd consider the minimal requirements. FileSource keeps the `java.io.File` style and still gives you a `java.nio.file` provider when you need one.
