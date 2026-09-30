@@ -45,7 +45,7 @@ public class FileSourceWriter extends OutputStreamWriter {
 	 * @throws IOException 
 	 */
 	public FileSourceWriter(FileSource fileSource) throws IOException {
-		super(fileSource.getOutputStream());
+		super(fileSource.getOutputStream(), Charset.defaultCharset());
 	
 	}
 

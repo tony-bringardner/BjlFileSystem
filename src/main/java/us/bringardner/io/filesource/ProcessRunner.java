@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
 import java.util.concurrent.TimeUnit;
+import java.nio.charset.Charset;
 
 /**
  * Runs an external command and captures its output safely.
@@ -73,7 +74,8 @@ public final class ProcessRunner {
 
 		synchronized (out) {
 			synchronized (err) {
-				return new Result(process.exitValue(), out.toString(), err.toString());
+				// command output is in the platform encoding
+				return new Result(process.exitValue(), out.toString(Charset.defaultCharset()), err.toString(Charset.defaultCharset()));
 			}
 		}
 	}

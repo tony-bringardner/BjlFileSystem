@@ -117,13 +117,13 @@ public interface FileSource extends Serializable, Comparable<Object> {
 	/** 0 = the current user owns the file, 1 = is in its group, 2 = other. */
 	private int accessClass() throws IOException {
 		FileSourceUser me = getFileSourceFactory().whoAmI();
-		String myName = me == null ? null : me.getName();
+		String myName = me.getName(); // whoAmI() never returns null
 		UserPrincipal owner = getOwner();
 		if( myName != null && owner != null && myName.equalsIgnoreCase(owner.getName()) ) {
 			return 0;
 		}
 		GroupPrincipal group = getGroup();
-		if( me != null && group != null && group.getName() != null && me.hasGroup(group.getName()) ) {
+		if( group != null && group.getName() != null && me.hasGroup(group.getName()) ) {
 			return 1;
 		}
 		return 2;

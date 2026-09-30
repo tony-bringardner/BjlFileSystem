@@ -53,7 +53,7 @@ public class FileSourceReader extends InputStreamReader {
 	 * @throws FileNotFoundException
 	 */
 	public FileSourceReader(FileSource fileSource) throws FileNotFoundException, IOException {
-		super(fileSource.getInputStream());	
+		super(fileSource.getInputStream(), Charset.defaultCharset());	
 	}
 
 	/**

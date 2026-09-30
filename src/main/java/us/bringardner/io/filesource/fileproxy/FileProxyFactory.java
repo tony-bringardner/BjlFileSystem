@@ -54,7 +54,7 @@ public class FileProxyFactory extends FileSourceFactory {
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
-	public final String LOCAL_INDICATOR="~";
+	public static final String LOCAL_INDICATOR="~";
 	public static final String FACTORY_ID = "fileproxy";
 	private volatile FileSource [] roots;
 	private volatile FileSource currentDirectory;

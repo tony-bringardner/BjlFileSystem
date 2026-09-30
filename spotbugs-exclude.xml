@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Accepted SpotBugs findings. Each entry says why it is accepted.
+  Everything else fails "mvn verify".
+-->
+<FindBugsFilter>
+	<!--
+	  "May expose internal representation": the flagged getters/setters hand out file sources,
+	  factories, streams and UI collaborators on purpose; they are live objects, not values,
+	  and copying them would break identity (a FileSource must stay tied to its factory).
+	-->
+	<Match>
+		<Or>
+			<Bug pattern="EI_EXPOSE_REP"/>
+			<Bug pattern="EI_EXPOSE_REP2"/>
+		</Or>
+	</Match>
+
+	<!--
+	  "Constructor throws, object may be exposed to finalizer attacks": the flagged classes
+	  (streams, dialogs) validate or open a file in the constructor and are not security
+	  boundaries; no untrusted code subclasses them.
+	-->
+	<Match>
+		<Bug pattern="CT_CONSTRUCTOR_THROW"/>
+	</Match>
+
+	<!-- The default factory is a deliberately shared, replaceable setting. -->
+	<Match>
+		<Class name="us.bringardner.io.filesource.FileSourceFactory"/>
+		<Method name="setDefaultFactory"/>
+		<Bug pattern="EI_EXPOSE_STATIC_REP2"/>
+	</Match>
+
+	<!--
+	  The provider must keep a public no-argument constructor: java.nio.file.spi.FileSystemProvider
+	  implementations are created by ServiceLoader. getSingleton() hands out the shared instance
+	  on purpose.
+	-->
+	<Match>
+		<Class name="us.bringardner.io.filesource.java.file.FileSourceFileSystemProvider"/>
+		<Or>
+			<Bug pattern="SING_SINGLETON_HAS_NONPRIVATE_CONSTRUCTOR"/>
+			<Bug pattern="MS_EXPOSE_REP"/>
+		</Or>
+	</Match>
+
+	<!-- "/" is the root of every Unix-like file system, not a configurable location. -->
+	<Match>
+		<Class name="us.bringardner.io.filesource.fileproxy.FileProxyFactory"/>
+		<Method name="listRoots"/>
+		<Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME"/>
+	</Match>
+
+	<!--
+	  Protected fields kept for subclasses in other FileSource implementations
+	  (sftp, jdbc, ftp), which this build can't see.
+	-->
+	<Match>
+		<Or>
+			<And>
+				<Class name="us.bringardner.io.filesource.AbstractRandomAccessIoController"/>
+				<Field name="factory"/>
+			</And>
+			<And>
+				<Class name="us.bringardner.io.filesource.AbstractRandomAccessStream"/>
+				<Field name="file"/>
+			</And>
+		</Or>
+		<Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD"/>
+	</Match>
+
+	<!--
+	  FileProxy's owner/group/permissions are caches: null (as after deserialization)
+	  means "look it up again", so nothing needs restoring.
+	-->
+	<Match>
+		<Class name="us.bringardner.io.filesource.fileproxy.FileProxy"/>
+		<Bug pattern="SE_TRANSIENT_FIELD_NOT_RESTORED"/>
+	</Match>
+</FindBugsFilter>

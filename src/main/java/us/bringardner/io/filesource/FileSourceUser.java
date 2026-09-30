@@ -165,12 +165,12 @@ Local Group Memberships      *Administrators       *Remote Desktop Users
 		}
 		
 		int idx=0;
-		for(Integer id: groups.keySet()) {
+		for(Map.Entry<Integer, FileSourceGroup> e : groups.entrySet()) {
 			if( idx++>0) {
 				ret.append(',');
 			}
 			
-			ret.append(""+id+"("+groups.get(id).getName()+")");
+			ret.append(""+e.getKey()+"("+e.getValue().getName()+")");
 		}
 		
 		return ret.toString();
@@ -280,6 +280,9 @@ Attributes: Mandatory group, Enabled by default, Enabled group
 	private static final List<String> windowsGroups = new ArrayList<>();
 	
 	private static FileSourceUser fromWindowsId(String idResponse) {
+		if( idResponse == null || idResponse.isEmpty() ) {
+			return null;
+		}
 		String lines [] = idResponse.split("\n");
 		FileSourceUser ret = null;
 		for(String line : lines) {

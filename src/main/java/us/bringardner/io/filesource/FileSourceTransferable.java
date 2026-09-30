@@ -37,6 +37,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import us.bringardner.io.filesource.fileproxy.FileProxy;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class FileSourceTransferable implements Transferable {
 
@@ -86,16 +88,16 @@ public class FileSourceTransferable implements Transferable {
 				if (file instanceof FileProxy	) {
 					exportFile = new File(file.getCanonicalPath());						
 				} else {
-					File tmp = File.createTempFile("tmp", "fs");
-					OutputStream out = new FileOutputStream(tmp);
-					InputStream in = file.getInputStream();
-					byte[] data = in.readAllBytes();
-					out.write(data);
-					out.close();
-					in.close();
-					exportFile = new File(tmp.getParent(),file.getName());
-					tmp.renameTo(exportFile);
-					tmp.deleteOnExit();
+					// A directory of its own, so the copy keeps its name without colliding with
+					// another export (renameTo used to fail silently and hand out a missing file)
+					Path dir = Files.createTempDirectory("fs-export");
+					dir.toFile().deleteOnExit();
+					exportFile = dir.resolve(file.getName()).toFile();
+					try (InputStream in = file.getInputStream()) {
+						Files.copy(in, exportFile.toPath());
+					}
+					// registered after the directory, so it is deleted first
+					exportFile.deleteOnExit();
 				}
 				list.add(exportFile);
 			}

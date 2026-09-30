@@ -96,6 +96,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.tree.DefaultTreeCellRenderer;
+import java.util.Objects;
 
 public class FileSourceChooserDialog extends JDialog implements DragGestureListener, ClipboardOwner {
 
@@ -281,51 +282,48 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 			}
 			System.out.println("Enter drop 2");
 			try {
-
-
 				FileSourceFactory factory = currentDirectory.getFileSourceFactory();
 				Transferable tr = event.getTransferable();
 				List<FileSource> newFiles = null;
 
-				if (event.isDataFlavorSupported(FileSourceTransferable. fileSourceFlavor)) {
+				if (event.isDataFlavorSupported(FileSourceTransferable.fileSourceFlavor)) {
 					event.acceptDrop(DnDConstants.ACTION_COPY);
 					Object obj = tr.getTransferData(FileSourceTransferable.fileSourceFlavor);
-					if (obj != null && obj instanceof List) {
+					if (obj instanceof List) {
 						newFiles = (List<FileSource>) obj;
-						event.acceptDrop(DnDConstants.ACTION_COPY);
-						event.dropComplete(true);
-					}					
+					}
 				} else if( event.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
 					event.acceptDrop(DnDConstants.ACTION_COPY);
 					Object obj =  tr.getTransferData(DataFlavor.javaFileListFlavor);
-
-					if (obj != null && obj instanceof List) {
+					if (obj instanceof List) {
 						newFiles = new ArrayList<FileSource>();
-						List<File> list = (List<File>) obj;
-						for(File f : list) {							
+						for(File f : (List<File>) obj) {
 							newFiles.add(factory.createFileSource(f.getCanonicalPath()));
 						}
-						event.acceptDrop(DnDConstants.ACTION_COPY);
-						event.dropComplete(true);
 					}
-
-					if( newFiles !=null && newFiles.size()>0 ) {
-						// move into the currentDirectory if it's not already there
-						for(FileSource file : newFiles) {
-							copyToCurrentDir(currentDirectory, file);
-						}
-						rescanCurrentDirectory();
-						event.dropComplete(true);
-						return;
-					}
-
+				} else {
+					event.rejectDrop();
+					return;
 				}
 
-				event.rejectDrop();
+				// Both flavors copy into the current directory (the FileSource flavor used to be accepted and then ignored)
+				boolean copied = false;
+				if( newFiles != null && !newFiles.isEmpty() ) {
+					for(FileSource file : newFiles) {
+						copyToCurrentDir(currentDirectory, file);
+					}
+					rescanCurrentDirectory();
+					copied = true;
+				}
+				event.dropComplete(copied);
 			} catch (Exception e) {
-
 				e.printStackTrace();
-				event.rejectDrop();
+				try {
+					event.dropComplete(false);
+				} catch (RuntimeException notAccepted) {
+					// failed before the drop was accepted
+					event.rejectDrop();
+				}
 			}
 			System.out.println("Exit drop");
 		}
@@ -333,14 +331,14 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 	}
 
 
-	class FileSourceTableCellRenderer extends DefaultTableCellRenderer {
+	static class FileSourceTableCellRenderer extends DefaultTableCellRenderer {
 
 		private static final long serialVersionUID = 1L;
 		private TableCellRenderer oldRenderer;
-		public final long KB = 1024;
-		public final  long MB = KB * KB;
-		public final  long GB = MB * KB;
-		public  final long TB = GB * KB;
+		public static final long KB = 1024;
+		public static final long MB = KB * KB;
+		public static final long GB = MB * KB;
+		public static final long TB = GB * KB;
 
 		private SimpleDateFormat fmt = new SimpleDateFormat("MM/dd/yyyy hh:mm:ss a");
 
@@ -1156,39 +1154,33 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 		if( tr != null) {
 
 			try {
-
 				List<FileSource> newFiles = null;
 
 				if (tr.isDataFlavorSupported(FileSourceTransferable.fileSourceFlavor)) {
-
 					Object obj = tr.getTransferData(FileSourceTransferable.fileSourceFlavor);
-					if (obj != null && obj instanceof List) {
-						newFiles = (List<FileSource>) obj;						
-					}					
+					if (obj instanceof List) {
+						newFiles = (List<FileSource>) obj;
+					}
 				} else if( tr.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
 					FileSourceFactory factory = currentDirectory.getFileSourceFactory();
 					Object obj =  tr.getTransferData(DataFlavor.javaFileListFlavor);
-
-					if (obj != null && obj instanceof List) {
+					if (obj instanceof List) {
 						newFiles = new ArrayList<FileSource>();
-						List<File> list = (List<File>) obj;
-						for(File f : list) {							
+						for(File f : (List<File>) obj) {
 							newFiles.add(factory.createFileSource(f.getCanonicalPath()));
 						}
 					}
+				}
 
-					if( newFiles !=null && newFiles.size()>0 ) {
-						// move into the currentDirectory if it's not already there
-						for(FileSource file : newFiles) {
-							copyToCurrentDir(currentDirectory, file);
-						}
-						rescanCurrentDirectory();
-						return;
+				// Both flavors paste into the current directory (the FileSource flavor used to be ignored)
+				if( newFiles != null && !newFiles.isEmpty() ) {
+					for(FileSource file : newFiles) {
+						copyToCurrentDir(currentDirectory, file);
 					}
-
+					rescanCurrentDirectory();
 				}
 			} catch (Exception e) {
-			
+				e.printStackTrace();
 			}
 		}
 
@@ -1299,7 +1291,7 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 	}
 
 	public void setApproveButtonText(String approveButtonText) {
-		if(this.approveButtonText == approveButtonText) {
+		if(Objects.equals(this.approveButtonText, approveButtonText)) {
 			return;
 		}
 		String oldValue = this.approveButtonText;
@@ -1795,6 +1787,7 @@ public class FileSourceChooserDialog extends JDialog implements DragGestureListe
 				case FILES_ONLY: ret = f.isFile();					
 				break;
 				case DIRECTORIES_ONLY: ret = f.isDirectory();
+				break;
 				default:
 					break;
 				}					

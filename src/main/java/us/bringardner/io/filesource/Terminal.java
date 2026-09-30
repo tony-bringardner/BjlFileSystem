@@ -69,7 +69,7 @@ public class Terminal extends BaseThread {
 
 	enum SizeType {LessThan,LessThanOrEqual, GreterThan, GreaterThanOrEqual, Equal, Between}
 
-	class Size {
+	static class Size {
 		SizeType type;
 		long a;
 		long b;
@@ -225,7 +225,7 @@ public class Terminal extends BaseThread {
 					}
 				}
 				long time = System.currentTimeMillis()-start;
-				double seconds = (time/1000);
+				double seconds = time/1000.0;
 				double bps = size/seconds;
 				if( verbose ) out.writeLine(to.getName()+" seconds "+(seconds)+" size="+size+" bps="+bps);
 			} finally {
@@ -1344,7 +1344,7 @@ public class Terminal extends BaseThread {
 	}
 
 
-	private class ParsedArgs {
+	private static class ParsedArgs {
 		Map<String,String> namesArgs = new HashMap<String, String>();
 		List<String> args = new ArrayList<String>();
 	}
@@ -1377,7 +1377,7 @@ public class Terminal extends BaseThread {
 		return ret;
 	}
 
-	private class ParsedFileValue {
+	private static class ParsedFileValue {
 		int factory;
 		String path;
 	}

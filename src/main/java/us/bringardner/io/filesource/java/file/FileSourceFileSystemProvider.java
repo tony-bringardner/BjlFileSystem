@@ -77,7 +77,6 @@ import java.util.Iterator;
 //import java.nio.file.spi.FileSystemProvider;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 
 import us.bringardner.io.filesource.FileSource;
@@ -88,15 +87,12 @@ import us.bringardner.io.filesource.FileSourceFactory;
 
 public class FileSourceFileSystemProvider extends FileSystemProvider {
 
-	Map<String,FileSystem> fileSystems = new TreeMap<String, FileSystem>();
 
 	private int streamBufferSize = 10240;
 
 	public FileSourceFileSystemProvider() {
 
 	}
-
-	private static transient  FileSourceFileSystemProvider singleton;
 
 
 
@@ -243,7 +239,7 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 	}
 
 	//PosixFileAttributeView extends BasicFileAttributeView, FileOwnerAttributeView
-	private class FileSourcePosixFileAttributeView implements PosixFileAttributeView,BasicFileAttributeView {
+	private static class FileSourcePosixFileAttributeView implements PosixFileAttributeView,BasicFileAttributeView {
 		FileSource file ;
 		boolean symbolicLink;
 
@@ -1066,7 +1062,8 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		if( linkFile.exists() || linkFile.getLinkedTo() != null ) {
 			throw new FileAlreadyExistsException(link.toString());
 		}
-		Path t = target.isAbsolute() || link.getParent() == null ? target : link.getParent().resolve(target);
+		Path linkParent = link.getParent();
+		Path t = target.isAbsolute() || linkParent == null ? target : linkParent.resolve(target);
 		FileSource targetFile = fileOf(t);
 		if( targetFile.getFileSourceFactory() != linkFile.getFileSourceFactory() ) {
 			throw new ProviderMismatchException("Link and target are in different file systems");
@@ -1111,16 +1108,13 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 
 
 
+	/** Created on first use; the JVM guarantees the holder class is initialized once. */
+	private static final class SingletonHolder {
+		static final FileSourceFileSystemProvider INSTANCE = new FileSourceFileSystemProvider();
+	}
+
 	public static FileSourceFileSystemProvider getSingleton() {
-		if( singleton == null ) {
-			synchronized (FileSourceFileSystemProvider.class) {
-				if( singleton == null ) {
-					singleton = new FileSourceFileSystemProvider();
-				}
-			}
-		}
-		
-		return singleton;
+		return SingletonHolder.INSTANCE;
 	}
 
 }

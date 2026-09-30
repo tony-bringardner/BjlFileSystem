@@ -337,7 +337,7 @@ public class FileProxy implements FileSource {
 
 	private static final long serialVersionUID = 1L;
 	File target; 
-	private String name;
+	private volatile String name;
 	private FileSourceFactory theCreator ;
 	// Not serializable (JDK principals, OS-specific helper): rebuilt on demand
 	// after deserialization. They used to be plain fields, so serializing a

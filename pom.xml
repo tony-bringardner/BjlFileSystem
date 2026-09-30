@@ -146,21 +146,32 @@
 				<artifactId>maven-deploy-plugin</artifactId>
 				<version>3.1.3</version>
 			</plugin>
+			<!-- Static analysis, part of verify (skip with -Dspotbugs.skip).
+			     Accepted findings are listed in spotbugs-exclude.xml -->
+			<plugin>
+				<groupId>com.github.spotbugs</groupId>
+				<artifactId>spotbugs-maven-plugin</artifactId>
+				<version>4.8.6.6</version>
+				<configuration>
+					<effort>Max</effort>
+					<threshold>Medium</threshold>
+					<excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+				</configuration>
+				<executions>
+					<execution>
+						<id>spotbugs-check</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
 		</plugins>
 
 		<pluginManagement>
 			<plugins>
-				<!-- Static analysis, run on demand: mvn compile spotbugs:check -->
-				<plugin>
-					<groupId>com.github.spotbugs</groupId>
-					<artifactId>spotbugs-maven-plugin</artifactId>
-					<version>4.8.6.6</version>
-					<configuration>
-						<effort>Max</effort>
-						<threshold>Medium</threshold>
-					</configuration>
-				</plugin>
-
 				<!-- Publishes to the GitHub branch when explicitly activated
 				     (needs branch-name and github credentials) -->
 				<plugin>

@@ -333,7 +333,7 @@ public class MemoryFileSourceFactory extends FileSourceFactory {
 	}
 
 	@Override
-	public FileSource getCurrentDirectory() throws IOException {
+	public synchronized FileSource getCurrentDirectory() throws IOException {
 		if( currentDirectory == null ) {
 			synchronized (this) {
 				if( currentDirectory == null ) {					

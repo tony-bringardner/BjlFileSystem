@@ -33,7 +33,6 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 
 	private byte[] data;
 	protected int size;
-	protected int pos;
 	private boolean closed;
 
 	public MemoryRandomAccessIoController(MemoryFileSource file) {
@@ -45,7 +44,7 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 	}
 
 	@Override
-	public void close() throws Exception {
+	public synchronized void close() throws Exception {
 		save();
 		closed = true;
 
@@ -177,12 +176,12 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 	}
 
 	@Override
-	public long length() throws IOException {
+	public synchronized long length() throws IOException {
 		return size;
 	}
 
 	@Override
-	public void setLength(long newLength) throws IOException {
+	public synchronized void setLength(long newLength) throws IOException {
 		ensureCapacity((int)newLength);
 		size = (int)newLength;
 		isDirty = true;
@@ -191,7 +190,7 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 	}
 
 	@Override
-	public void save() throws IOException {
+	public synchronized void save() throws IOException {
 		if( isDirty) {
 			file.setData(Arrays.copyOf(data, size));
 			isDirty = false;

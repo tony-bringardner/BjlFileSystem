@@ -45,6 +45,8 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 
 import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
+import java.util.Map;
+import java.util.Objects;
 
 public class RecentFileMenu extends JMenu {
 
@@ -61,7 +63,7 @@ public class RecentFileMenu extends JMenu {
 	private static final String PREF_RECENT_LIST = "RecentList";
 	private static final String PREF_MAX_FILES = "MaxRecentFiles";
 	private static String algorithm = "AES/CBC/PKCS5Padding";
-	private static IvParameterSpec iv = new IvParameterSpec("1234567812345678".getBytes());
+	private static IvParameterSpec iv = new IvParameterSpec("1234567812345678".getBytes(StandardCharsets.US_ASCII));
 	
 
 	public static class ListEntry {
@@ -88,8 +90,9 @@ public class RecentFileMenu extends JMenu {
 			StringBuilder buf = new StringBuilder();
 			
 			
-			for(Object name : prop.keySet()) {
-				Object val = prop.get(name);
+			for(Map.Entry<Object, Object> ent : prop.entrySet()) {
+				Object name = ent.getKey();
+				Object val = ent.getValue();
 				String val2 = name.toString()+EQ+encode( val.toString());
 				if(buf.length()>0) {
 					buf.append(COMMA);
@@ -165,11 +168,20 @@ public class RecentFileMenu extends JMenu {
 		}
 		
 		@Override
+		
+		public int hashCode() {
+		
+			return Objects.hash(id, path);
+		
+		}
+
+		
+		@Override
 		public boolean equals(Object obj) {
 			boolean ret = false;
 			if (obj instanceof ListEntry) {
 				ListEntry le = (ListEntry) obj;
-				ret = le.id .equals(id) && le.path.equals(path);
+				ret = Objects.equals(le.id, id) && Objects.equals(le.path, path);
 			}
 			return ret;
 		}
@@ -187,7 +199,7 @@ public class RecentFileMenu extends JMenu {
 		cipher.init(Cipher.DECRYPT_MODE, generateAesKeyFromPassphrase(), iv);
 		byte[] plainText = cipher.doFinal(Base64.getDecoder().decode(cipherText));
 		
-		return new String(plainText);
+		return new String(plainText, StandardCharsets.UTF_8);
 	}
 
 	
@@ -195,7 +207,7 @@ public class RecentFileMenu extends JMenu {
 
 		Cipher cipher = Cipher.getInstance(RecentFileMenu.algorithm);
 		cipher.init(Cipher.ENCRYPT_MODE, generateAesKeyFromPassphrase(), iv);
-		byte[] cipherText = cipher.doFinal(input.getBytes());
+		byte[] cipherText = cipher.doFinal(input.getBytes(StandardCharsets.UTF_8));
 		return Base64.getEncoder().encodeToString(cipherText);
 	}
 	

@@ -63,6 +63,7 @@ import javax.swing.event.CaretListener;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.text.DateFormatter;
+import java.nio.charset.Charset;
 
 public class FileSourceExamineDialog extends JDialog {
 
@@ -525,7 +526,7 @@ public class FileSourceExamineDialog extends JDialog {
 				textArea.setText(formatBinary(data));
 			} else {
 				textArea.setFont(normalFont);
-				textArea.setText(new String(data));
+				textArea.setText(new String(data, Charset.defaultCharset()));
 			}
 		}
 
@@ -678,10 +679,10 @@ public class FileSourceExamineDialog extends JDialog {
 		return ret;
 	}
 
-	public static double K = 1024;
-	public static double M = K*K;
-	public static double G = M*M;
-	public static double T = G*G;
+	public static final double K = 1024;
+	public static final double M = K*K;
+	public static final double G = M*K;
+	public static final double T = G*K;
 	private JLabel fileTypeLabel;
 	private JTextField viewSizeTextField;
 	private JPanel viewSizePanel;

@@ -32,7 +32,7 @@ import java.io.IOException;
  */
 public abstract class AbstractRandomAccessIoController implements IRandomAccessIoController {
 
-	public class Chunk {
+	public static class Chunk {
 		public boolean isNew=false;
 		public boolean isDirty=false;
 		public byte [] data;
