@@ -25,7 +25,6 @@
  */
 package us.bringardner.io.filesource.java.file;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.attribute.BasicFileAttributeView;
@@ -38,7 +37,6 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import us.bringardner.io.filesource.FileSource;
-import us.bringardner.io.filesource.fileproxy.FileProxy;
 
 public class FileSourceFileStore extends FileStore {
 
@@ -68,11 +66,6 @@ public class FileSourceFileStore extends FileStore {
 		return name()+" ("+type()+")";
 	}
 
-	/** Local files report the real disk; other file systems can't tell. */
-	private File local() {
-		return file instanceof FileProxy ? new File(file.getAbsolutePath()) : null;
-	}
-
 	@Override
 	public String type() {
 		return file.getFileSourceFactory().getTypeId();
@@ -83,22 +76,25 @@ public class FileSourceFileStore extends FileStore {
 		return false;
 	}
 
+	/**
+	 * The FileSource's getTotalSpace/getFreeSpace/getUsableSpace: the real
+	 * disk for local files, 0 when an implementation can't tell (as
+	 * java.io.File reports). This used to be Long.MAX_VALUE for everything
+	 * but local files.
+	 */
 	@Override
 	public long getTotalSpace() throws IOException {
-		File f = local();
-		return f != null ? f.getTotalSpace() : Long.MAX_VALUE;
+		return file.getTotalSpace();
 	}
 
 	@Override
 	public long getUsableSpace() throws IOException {
-		File f = local();
-		return f != null ? f.getUsableSpace() : Long.MAX_VALUE;
+		return file.getUsableSpace();
 	}
 
 	@Override
 	public long getUnallocatedSpace() throws IOException {
-		File f = local();
-		return f != null ? f.getFreeSpace() : Long.MAX_VALUE;
+		return file.getFreeSpace();
 	}
 
 	/** Was true for any view, e.g. ACL or DOS, which the provider doesn't support. */

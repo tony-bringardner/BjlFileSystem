@@ -147,14 +147,14 @@ try {
 
 ## NIO file system provider
 
-`FileSourcePath` adapts any FileSource to a `java.nio.file.Path`. The provider is registered for the `filesource` scheme, so `Paths.get(URI)` works too:
+`file.toPath()` returns a `java.nio.file.Path` (a `FileSourcePath`) for any FileSource. The provider is registered for the `filesource` scheme, so `Paths.get(URI)` works too:
 
 ```java
-Path path = new FileSourcePath(file);
+Path path = file.toPath();
 String text = Files.readString(path);
 Files.writeString(path.resolveSibling("copy.txt"), text);
 
-try (DirectoryStream<Path> ds = Files.newDirectoryStream(new FileSourcePath(dir), "*.txt")) {
+try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir.toPath(), "*.txt")) {
     for (Path p : ds) {
         System.out.println(p.getFileName());
     }
@@ -165,7 +165,7 @@ Path fromUri = Paths.get(new URI("filesource:/tmp/example/hello.txt?sourcetype=f
 
 Supported: streams and byte channels (`readAllBytes`, `readString`, `lines`, `write`, `newByteChannel`), the standard open options, `copy`, `move`, `delete`, `createDirectory`, `exists`/`notExists`/`isReadable`, basic, POSIX and owner attributes (read with `readAttributes`, set with `setAttribute` or the typed setters), symbolic and hard links (`createSymbolicLink`, `createLink`, `readSymbolicLink`), directory streams, file stores, a user/group lookup service, and `glob:`/`regex:` path matchers. Not supported: `FileChannel` and `AsynchronousFileChannel`, watch services (`newWatchService` throws `UnsupportedOperationException`), and `ATOMIC_MOVE`.
 
-For remote file systems the lookup service only knows the connected user and that user's groups, and a file store's space figures are `Long.MAX_VALUE` because the size isn't known; local files use the operating system's lookup and report real disk space.
+For remote file systems the lookup service only knows the connected user and that user's groups, and a file store's space figures are 0 because the size isn't known (as `java.io.File` reports); local files use the operating system's lookup and report real disk space.
 
 ## Writing your own implementation
 
@@ -206,27 +206,28 @@ The unit tests in `src/test/java`, starting with `AbstractTestClass`, are the be
 | `new File("/data/in.txt")` | `factory.createFileSource("/data/in.txt")` |
 | `new File(dir, "in.txt")` | `dir.getChild("in.txt")` |
 | `file.getParentFile()`, `getName()`, `getParent()`, `getAbsolutePath()`, `getCanonicalPath()` | Same names |
-| `file.getPath()` | `file.getAbsolutePath()` (a `FileSource` has no relative form) |
+| `file.getPath()`, `isAbsolute()`, `getAbsoluteFile()`, `getCanonicalFile()` | Same names (a `FileSource` is always absolute, so `getPath()` is the absolute path and `isAbsolute()` is true) |
 | `exists()`, `isFile()`, `isDirectory()`, `isHidden()`, `length()`, `lastModified()` | Same names (they declare `IOException`) |
 | `mkdir()`, `mkdirs()`, `createNewFile()`, `delete()` | Same names |
 | `list()`, `listFiles()` | Same names |
 | `listFiles(FileFilter)`, `list(FilenameFilter)` | `listFiles(FileSourceFilter)`, `list(FileSourceFilter)` (see the example below) |
 | `canRead()`, `canWrite()`, `canExecute()`, `setReadable(...)`, `setWritable(...)`, `setExecutable(...)`, `setReadOnly()` | Same names, plus per-class ones such as `setGroupWritable(...)` and `canOtherRead()` |
-| `file.setLastModified(time)` | `file.setLastModifiedTime(time)` |
+| `file.setLastModified(time)` | Same name (or `setLastModifiedTime(time)`) |
 | `file.renameTo(dest)` | `file.renameTo(dest)`, where `dest` is a `FileSource` from the same factory. It never replaces an existing file (see [Behaviour worth knowing](#behaviour-worth-knowing)). |
 | `File.listRoots()` | `factory.listRoots()` |
 | `File.separatorChar`, `File.pathSeparatorChar` | `factory.getSeperatorChar()`, `factory.getPathSeperatorChar()` |
-| `file.toURI()`, `file.toURL()` | `file.toURL()`, a [`filesource:` URL](#urls) that works for every implementation |
-| `file.toPath()` | `new FileSourcePath(file)`, for use with `java.nio.file.Files` ([NIO file system provider](#nio-file-system-provider)) |
+| `file.toURI()`, `file.toURL()` | Same names; they give a [`filesource:` URI/URL](#urls) that works for every implementation |
+| `file.toPath()` | Same name; the `Path` works with `java.nio.file.Files` ([NIO file system provider](#nio-file-system-provider)) |
 | `new FileInputStream(file)` | `file.getInputStream()` |
 | `new FileOutputStream(file)`, `new FileOutputStream(file, true)` | `file.getOutputStream()`, `file.getOutputStream(true)` |
 | `new FileReader(file, charset)` | `new FileSourceReader(file, charset)` |
 | `new FileWriter(file, charset)` | `new FileSourceWriter(file, charset)` |
 | `new FileWriter(file, charset, true)` (append) | `new OutputStreamWriter(file.getOutputStream(true), charset)` |
 | `new RandomAccessFile(file, mode)` | `file.getRandomAccessStream(mode)` (see [Random access](#random-access)) |
-| `Files.readAllBytes(file.toPath())` | `Files.readAllBytes(new FileSourcePath(file))`, or read `file.getInputStream()` |
+| `Files.readAllBytes(file.toPath())` | Unchanged |
+| `getTotalSpace()`, `getFreeSpace()`, `getUsableSpace()` | Same names. Real values for local files; 0 where the file system can't tell, which is what `java.io.File` returns in that case |
 
-Not available on `FileSource`: `deleteOnExit()`, `File.createTempFile(...)` (create a uniquely named child and call `createNewFile()`), `isAbsolute()` (every `FileSource` is absolute), and `getFreeSpace()`/`getTotalSpace()`/`getUsableSpace()` (use `Files.getFileStore(new FileSourcePath(file))`).
+Not available on `FileSource` yet: `deleteOnExit()` and `File.createTempFile(...)` (for now, create a uniquely named child and call `createNewFile()`).
 
 ### Example
 

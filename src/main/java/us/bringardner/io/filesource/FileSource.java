@@ -475,6 +475,91 @@ public interface FileSource extends Serializable, Comparable<Object> {
 
 	public boolean setOwner(UserPrincipal owner) throws IOException ;
 
+	//
+	// java.io.File compatibility. Default methods, so existing implementations
+	// (including those in other projects) get them without changes; override
+	// where the storage can do better.
+	//
 
+	/**
+	 * Always true: a FileSource is always created from an absolute path
+	 * (relative paths are resolved by the factory). As java.io.File.isAbsolute().
+	 */
+	default boolean isAbsolute() {
+		return true;
+	}
+
+	/**
+	 * The path, as java.io.File.getPath(). Every FileSource is absolute, so by
+	 * default this is getAbsolutePath().
+	 */
+	default String getPath() {
+		return getAbsolutePath();
+	}
+
+	/** This file (it's already absolute). As java.io.File.getAbsoluteFile(). */
+	default FileSource getAbsoluteFile() {
+		return this;
+	}
+
+	/**
+	 * The file for getCanonicalPath(), from the same factory. As
+	 * java.io.File.getCanonicalFile().
+	 */
+	default FileSource getCanonicalFile() throws IOException {
+		String canonical = getCanonicalPath();
+		return canonical.equals(getAbsolutePath()) ? this : getFileSourceFactory().createFileSource(canonical);
+	}
+
+	/**
+	 * Same as setLastModifiedTime(time), under java.io.File's name.
+	 *
+	 * @throws IllegalArgumentException if time is negative, as java.io.File does
+	 */
+	default boolean setLastModified(long time) throws IOException {
+		if( time < 0 ) {
+			throw new IllegalArgumentException("Negative time");
+		}
+		return setLastModifiedTime(time);
+	}
+
+	/**
+	 * A java.nio.file.Path for this file, for use with java.nio.file.Files.
+	 * As java.io.File.toPath().
+	 */
+	default java.nio.file.Path toPath() {
+		return new us.bringardner.io.filesource.java.file.FileSourcePath(this);
+	}
+
+	/**
+	 * A filesource: URI for this file (the same form as toPath().toUri()).
+	 * As java.io.File.toURI().
+	 */
+	default java.net.URI toURI() {
+		return toPath().toUri();
+	}
+
+	/**
+	 * The size of the storage this file is on, in bytes, or 0 if it isn't
+	 * known, as java.io.File.getTotalSpace() returns when it can't tell.
+	 * Local files report the real disk; other implementations return 0
+	 * unless they override this.
+	 */
+	default long getTotalSpace() throws IOException {
+		return 0L;
+	}
+
+	/** Unallocated bytes on the storage, or 0 if unknown. As java.io.File.getFreeSpace(). */
+	default long getFreeSpace() throws IOException {
+		return 0L;
+	}
+
+	/**
+	 * Bytes available to this program on the storage, or 0 if unknown.
+	 * As java.io.File.getUsableSpace().
+	 */
+	default long getUsableSpace() throws IOException {
+		return 0L;
+	}
 
 }

@@ -153,9 +153,12 @@ public class NioGapsTests {
 		assertTrue(store.supportsFileAttributeView(PosixFileAttributeView.class));
 		assertFalse(store.supportsFileAttributeView(AclFileAttributeView.class));
 		assertFalse(store.supportsFileAttributeView("dos"));
-		assertTrue(store.getTotalSpace() > 0);
 		if( kind.equals("local") ) {
+			assertTrue(store.getTotalSpace() > 0);
 			assertNotEquals(Long.MAX_VALUE, store.getTotalSpace());
+		} else {
+			// unknown, reported as 0 as java.io.File does (was Long.MAX_VALUE)
+			assertEquals(0L, store.getTotalSpace());
 		}
 		assertThrows(UnsupportedOperationException.class, () -> store.getAttribute("nope"));
 	}
