@@ -404,7 +404,9 @@ public class MemoryFileSource implements FileSource {
 	 * @see us.bringardner.io.FileSource#getParent()
 	 */
 	public String getParent() {
-		return parent == null ? null:parent.getName();		
+		// The parent's path, as java.io.File.getParent() returns. (It used to
+		// return only the parent's name, e.g. "b" instead of "/a/b".)
+		return parent == null ? null:parent.getAbsolutePath();
 	}
 
 	/**
