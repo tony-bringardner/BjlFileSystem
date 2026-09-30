@@ -9,9 +9,9 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
-	<description>This project defines an Interface of a "FileSystem" that looks
-		very much like a Java File but enables mutiple implementations to
-		coexists (i,e, FTP, SFTP, ...) . 
+	<description>An interface that looks very much like java.io.File but lets
+		multiple file system implementations coexist (local, in-memory, FTP,
+		SFTP, JDBC, ...), with a java.nio.file provider for all of them.
 	</description>
 	<name>Bringardner Java Library FileSystem</name>
 	

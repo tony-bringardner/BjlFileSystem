@@ -104,13 +104,6 @@ public class WindowsPermissionManager implements PermissionManager{
 		return ret;
 	}
 
-	public static void main(String[] args) throws IOException {
-		File file = new File("TestFiles\\Hotel California.txt").getCanonicalFile();
-		GroupPrincipal o = file.toPath().getFileSystem().getUserPrincipalLookupService().lookupPrincipalByGroupName("Creator Owner");
-
-		System.out.println(o);
-	}
-
 	private boolean setPermission(UserPrincipal user,AclEntryPermission perm,boolean value) throws IOException {
 		boolean ret = false;
 

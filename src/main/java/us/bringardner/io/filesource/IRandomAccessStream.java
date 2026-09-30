@@ -70,5 +70,13 @@ public interface IRandomAccessStream extends DataOutput, DataInput, Closeable  {
 	public  void writeChars(java.lang.String arg) throws java.io.IOException;
 	public void seek(long arg) throws java.io.IOException;
 
+	/**
+	 * The current offset in the file, where the next read or write happens.
+	 * As java.io.RandomAccessFile.getFilePointer().
+	 *
+	 * @throws java.io.IOException if the stream is closed or an I/O error occurs
+	 */
+	public long getFilePointer() throws java.io.IOException;
+
 
 }

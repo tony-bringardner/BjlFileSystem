@@ -509,4 +509,21 @@ public class RandomAccessStreamTests {
 		}
 		org.junit.jupiter.api.Assertions.assertThrows(java.io.FileNotFoundException.class, () -> missing.getRandomAccessStream("r"));
 	}
+
+	/** getFilePointer() is on the IRandomAccessStream interface: no cast needed. */
+	@ParameterizedTest
+	@ValueSource(strings = { "memory", "local" })
+	public void filePointerOnTheInterface(String kind) throws Exception {
+		Subject s = open(kind, "0123456789".getBytes(), "rw");
+		s.ra.close();
+		us.bringardner.io.filesource.IRandomAccessStream ras = s.file.getRandomAccessStream("rw");
+		assertEquals(0, ras.getFilePointer());
+		ras.readInt();
+		assertEquals(4, ras.getFilePointer());
+		ras.seek(8);
+		ras.writeLong(1);
+		assertEquals(16, ras.getFilePointer());
+		ras.close();
+		org.junit.jupiter.api.Assertions.assertThrows(IOException.class, ras::getFilePointer);
+	}
 }

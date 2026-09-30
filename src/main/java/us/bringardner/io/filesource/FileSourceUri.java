@@ -2,7 +2,6 @@ package us.bringardner.io.filesource;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -211,24 +210,6 @@ public class FileSourceUri  {
 
 	public void setFragment(String fragment) {
 		this.fragment = fragment;
-	}
-
-
-	public static void main(String[] args) throws URISyntaxException, IOException {
-
-
-		URI uri = new URI("filesource:target/TestDir?sourcetype=fileproxy");
-
-
-		FileSourceUri fsuri = new FileSourceUri(uri);
-		System.out.println(fsuri);
-		uri = new URI("foo://example.com:8042/over/there?name=ferret#nose");
-		fsuri = new FileSourceUri(uri);
-		System.out.println(fsuri);
-		uri = new URI("ftps://tony:0000@bringardner.us:10021/home/tony");
-		fsuri = new FileSourceUri(uri);
-		System.out.println(fsuri);
-		
 	}
 
 

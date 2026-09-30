@@ -28,11 +28,6 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
     public static final int SOFT_MAX_ARRAY_LENGTH = Integer.MAX_VALUE - 8;
 
 
-	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-
-	}
-
 	private MemoryFileSource file;
 	private boolean isDirty = false;
 

@@ -143,7 +143,7 @@ try {
 }
 ```
 
-`IRandomAccessStream` has the same methods as `java.io.RandomAccessFile` (`seek`, `read`, `readFully`, `readInt`, `writeUTF`, `setLength`, …). For read-only access with seeking, use `getSeekableInputStream()`.
+`IRandomAccessStream` has the same methods as `java.io.RandomAccessFile` (`seek`, `getFilePointer`, `read`, `readFully`, `readInt`, `writeUTF`, `setLength`, …). For read-only access with seeking, use `getSeekableInputStream()`.
 
 ## NIO file system provider
 
