@@ -854,7 +854,8 @@ public class FileProxy implements FileSource {
 		if(owner == null ) {
 			synchronized (this) {
 				if( owner == null ) {
-					owner = Files.getOwner(target.toPath());	
+					// names are cached by uid across files (BJL-31)
+					owner = PrincipalCache.owner(target.toPath());
 				}
 			}
 		}
@@ -870,10 +871,9 @@ public class FileProxy implements FileSource {
 					WindowsPermissionManager wpm = (WindowsPermissionManager) permissions();
 					group = (GroupPrincipal) wpm.getGroupPrincipal();
 				} else {
-					PosixFileAttributeView view2 = Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class,LinkOption.NOFOLLOW_LINKS);
-					if (view2 != null) {
-						PosixFileAttributes at = view2.readAttributes();
-						group = at.group();
+					// names are cached by gid across files (BJL-31)
+					if (Files.getFileAttributeView(target.toPath(), PosixFileAttributeView.class,LinkOption.NOFOLLOW_LINKS) != null) {
+						group = PrincipalCache.group(target.toPath());
 						if( group == null ) {
 							group = new GroupPrincipal() {
 
