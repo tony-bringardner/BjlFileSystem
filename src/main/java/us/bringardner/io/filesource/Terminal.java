@@ -51,6 +51,7 @@ import us.bringardner.io.LFLineReader;
 import us.bringardner.io.LFLineWriter;
 import us.bringardner.io.MonitoredInputStream;
 import us.bringardner.io.filesource.fileproxy.FileProxyFactory;
+import us.bringardner.io.IoUtils;
 
 
 //  System.setProperty("java.awt.headless", "true");
@@ -219,20 +220,14 @@ public class Terminal extends BaseThread {
 						out2.write(data, 0, got);
 					}
 				} finally {
-					try {
-						out2.close();
-					} catch (Exception e) {
-					}
+					IoUtils.closeQuietly(out2);
 				}
 				long time = System.currentTimeMillis()-start;
 				double seconds = time/1000.0;
 				double bps = size/seconds;
 				if( verbose ) out.writeLine(to.getName()+" seconds "+(seconds)+" size="+size+" bps="+bps);
 			} finally {
-				try {
-					in.close();
-				} catch (Exception e) {
-				}
+				IoUtils.closeQuietly(in);
 			}
 
 		}
@@ -638,10 +633,7 @@ public class Terminal extends BaseThread {
 							}
 
 						} finally {
-							try {
-								myIn.close();
-							} catch (Throwable e) {
-							}
+							IoUtils.closeQuietly(myIn);
 						}
 					}
 				}

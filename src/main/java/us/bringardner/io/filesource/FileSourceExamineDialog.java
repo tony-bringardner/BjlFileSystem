@@ -64,6 +64,7 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.text.DateFormatter;
 import java.nio.charset.Charset;
+import us.bringardner.io.IoUtils;
 
 public class FileSourceExamineDialog extends JDialog {
 
@@ -516,7 +517,7 @@ public class FileSourceExamineDialog extends JDialog {
 			showError(e);
 		} finally {
 			if( in != null ) {
-				try {in.close();} catch (Exception e2) {}
+				IoUtils.closeQuietly(in);
 			}
 		}
 
