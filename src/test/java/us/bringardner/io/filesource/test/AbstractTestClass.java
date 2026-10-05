@@ -25,22 +25,15 @@
  */
 package us.bringardner.io.filesource.test;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.BufferedInputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -50,268 +43,13 @@ import us.bringardner.io.filesource.FileSource;
 import us.bringardner.io.filesource.FileSourceFactory;
 
 
+/**
+ * The FileSource contract, for any factory. A subclass sets the fields of
+ * FileSourceTestSupport (factory, localTestFileDirPath, remoteTestFileDirPath,
+ * localCacheDirPath) in its @BeforeAll.
+ */
 @TestMethodOrder(OrderAnnotation.class)
-public abstract class AbstractTestClass {
-
-	
-	public static enum Permissions {
-		OwnerRead('r'),
-		OwnerWrite('w'),
-		OwnerExecute('x'),
-
-		GroupRead('r'),
-		GroupWrite('w'),
-		GroupExecute('x'),
-
-		OtherRead('r'),
-		OtherWrite('w'),
-		OtherExecute('x');
-
-	    public final char label;
-
-	    private Permissions(char label) {
-	        this.label = label;
-	    }
-	}
-
-	interface TestAction {
-		void doSomthing(FileSource dir);
-	}
-
-	public static String localTestFileDirPath ;
-	public static String remoteTestFileDirPath ;
-	public static String localCacheDirPath;	
-	public static FileSourceFactory factory;
-	public static boolean verbose = false;
-
-
-	public static void tearDownWindowsDrive(String drive) throws IOException {
-		File driveFile = new File(drive+":");
-		if( driveFile.exists()) {
-			List<String> cmd = Arrays.asList( "subst",drive+":","/D");
-			executeExternalCommand(cmd);
-		}
-	}
-
-	public static void executeExternalCommand(List<String> cmd) throws IOException {
-		File cmdFile = null;
-
-		for(String path : (""+System.getenv("PATH")).split("[;]")) {
-			for(String ext : (""+System.getenv("PATHEXT")).split("[;]")) {
-				File file = new File(path+"\\cmd"+ext);
-				if( file.exists()) {
-					cmdFile = file;
-					break;
-				}
-			}
-			if( cmdFile !=null) {
-				break;
-			}
-		}
-
-		List<String> cmd2 =new ArrayList<>();
-		cmd2.add( cmdFile.getCanonicalPath());
-		cmd2.add( "/r");
-		cmd2.addAll(cmd);
-
-		ProcessBuilder builder = new ProcessBuilder(cmd2);
-		Process p = builder.start();
-		int time = 0;
-		while(p.isAlive()) {
-			try {
-				p.waitFor(1000, TimeUnit.MILLISECONDS);
-				if( ++time > 3) { 
-					System.out.println("ExternalProcess Waiting for "+(time*1000));
-				}
-			} catch (InterruptedException e) {
-			}
-		}
-		int exitCode = p.exitValue();
-		if( exitCode!=0) {
-			String err = new String(p.getErrorStream().readAllBytes());
-			String out = new String(p.getInputStream().readAllBytes());
-			throw new IOException(err+" = "+out);
-		}
-
-	}
-
-	public static void setupWindowsDrive(String drive) throws IOException {
-		File driveFile = new File(drive+":");
-		if( !driveFile.exists()) {
-			File sourceDir = new File("TestFiles").getCanonicalFile();
-			if( !sourceDir.exists()) {
-				throw new IOException("Missing souce dir  "+sourceDir);
-			}
-
-			File targetDir = new File("target\\"+drive+"DriveDir").getCanonicalFile();
-			String tmp = targetDir.getAbsolutePath();
-			if( !targetDir.exists()) {
-				if( !targetDir.mkdirs()) {
-					throw new IOException("Can't create target dir "+targetDir);
-				}
-			}
-			FileSource from = FileSourceFactory.getDefaultFactory().createFileSource(sourceDir.getAbsolutePath());
-			FileSource to = FileSourceFactory.getDefaultFactory().createFileSource(tmp);
-			copy(from, to);
-
-
-			List<String> cmd = Arrays.asList( "subst",drive+":",tmp);
-			executeExternalCommand(cmd);
-		}
-	}
-
-	@AfterAll
-	static void tearDownAfterAll()  {
-		if( factory != null ) {
-			try {
-				factory.disConnect();
-			} catch (Throwable e) {
-			}
-		}
-	}
-
-	public static void traverseDir(FileSource dir,TestAction action) throws IOException {
-		if(verbose) System.out.println(format(dir));
-		if( action != null ) {
-			action.doSomthing(dir);
-		}
-		if( dir.isDirectory()) {
-			FileSource [] kids = dir.listFiles();
-			if( kids != null ) {
-				for(FileSource file : kids) {
-					traverseDir(file,action);
-				}
-			}
-		}		
-	}
-
-	public static void deleteAll(FileSource file) throws IOException {
-		if( file.isDirectory()) {
-			FileSource[] kids = file.listFiles();
-			if( kids !=null ) {
-			for(FileSource child :kids) {
-				deleteAll(child);
-			}
-			}
-		}
-		assertTrue(file.delete()
-				, "Can't delete "+file);
-	}
-
-	public static String format(FileSource dir) throws IOException {
-		String ret = (String.format("factory=%s type=%s exists=%s path=%s read=%s write=%s size=%d",
-				dir.getFileSourceFactory().getTypeId(),
-				dir.isFile()?"File":dir.isDirectory()?"Dir":"Undefined",
-						dir.exists() ? "true":"false",
-								dir.getAbsolutePath(),
-								dir.canRead()?"true":"false",
-										dir.canWrite()?"true":"false",
-												dir.length()
-				)
-				);
-
-		return ret;
-
-	}
-
-	public static void compare(String name,FileSource source, FileSource target) throws IOException {
-		assertTrue(source.exists()
-				, "Source file does not exist ("+
-				source.getName()+")");
-		assertTrue(target.exists()
-		, "Target file does not exist ("+
-		target.getName()+")");
-
-		assertEquals(source.isDirectory(), target.isDirectory(), name+" are not the same type");
-
-		if( source.isDirectory()) {
-			FileSource [] kids1 = source.listFiles();
-			FileSource [] kids2 = target.listFiles();
-			assertEquals(kids1.length,kids2.length, name+" does not have the same number of kids");
-			for(int idx=0;idx <  kids1.length; idx++ ) {
-				compare(name,kids1[idx],kids2[idx]);
-			}
-
-		} else {
-			assertEquals(source.length(), target.length(), name+" lens are not eq");
-			try(InputStream sourceIn = source.getInputStream()) {
-				try(InputStream targetIn  = target.getInputStream()) {
-					compare(name,sourceIn,targetIn);
-				}
-			}
-		}
-	}
-
-	/**
-	 * Compare the bytes of two input streams
-	 * 
-	 * @param in1
-	 * @param in2
-	 * @throws IOException
-	 */
-	public static void compare(String name,InputStream in1, InputStream in2) throws IOException {
-		//  in1 & in2 will be closed by the java try / auto close in the calling function
-		// use a small buffer to get multiple reads 
-		BufferedInputStream bin1 = new BufferedInputStream(in1);
-		BufferedInputStream bin2 = new BufferedInputStream(in2);
-
-		int ch = bin1.read();
-		int pos = 0;
-		while( ch > 0) {
-			assertEquals(ch, bin2.read(), name+" compare pos="+pos);
-			pos++;
-			ch = bin1.read();				
-		}
-		assertEquals(ch, bin2.read(), name+" compare pos="+pos);
-
-	}
-
-	public static void copy(FileSource from, FileSource to) throws IOException {
-		FileSource parent = to.getParentFile();
-		if( parent != null && !parent.exists()) {
-			parent.mkdirs();
-		} 
-		if( from.isDirectory()) {
-			FileSource [] kids = from.listFiles();
-			if( kids != null ) {
-				for(FileSource f : kids) {
-					copy(f,to.getChild(f.getName()));
-				}
-			}
-		} else {
-			try(InputStream in = from.getInputStream()) {
-				try(OutputStream out = to.getOutputStream()) {
-					copy(in,out);		
-				}
-			}
-			
-		}
-	}
-
-	public static void copy(InputStream in, OutputStream out) throws IOException {
-		// use a small buffer to get multiple reads 
-		byte [] data = new byte[1024];
-		int got = 0;
-
-		try {
-			while( (got=in.read(data)) >= 0) {
-				if( got > 0 ) {
-					out.write(data,0,got);
-				}
-			}
-
-		} finally {
-			try {
-				out.close();
-			} catch (Exception e) {
-			}
-			try {
-				in.close();
-			} catch (Exception e) {
-			}
-
-		}
-	}
+public abstract class AbstractTestClass extends FileSourceTestSupport {
 
 	@Test
 	@Order(1)
@@ -381,18 +119,6 @@ public abstract class AbstractTestClass {
 
 	}
 
-	public static void renameAndValidate(FileSource source, FileSource target) throws IOException {
-		assertTrue(
-				source.renameTo(target)
-				,"Can't rename "+source+" to "+target);			
-		assertTrue(
-				target.exists()
-				,"New file does not exist after rename");
-		assertFalse(
-				source.exists()
-				,"remoteFile still exists after rename");		
-	}
-
 	@Test 
 	@Order(3)
 	public void testPermissions() throws IOException {
@@ -417,84 +143,38 @@ public abstract class AbstractTestClass {
 		
 	}
 
-	public static boolean setPermission(Permissions p, FileSource file,boolean b) throws IOException {
-		boolean ret = false;
-		switch (p) {
-		case OwnerRead: 	ret = file.setOwnerReadable(b); break;
-		case OwnerWrite:	ret = file.setOwnerWritable(b); break;
-		case OwnerExecute:	ret = file.setOwnerExecutable(b); break;
 
-		case GroupRead: 	ret = file.setGroupReadable(b); break;
-		case GroupWrite:	ret = file.setGroupWritable(b); break;
-		case GroupExecute:	ret = file.setGroupExecutable(b); break;
-
-		case OtherRead: 	ret = file.setOtherReadable(b); break;
-		case OtherWrite:	ret = file.setOtherWritable(b); break;
-		case OtherExecute:	ret = file.setOtherExecutable(b); break;
-
-		default:
-			throw new RuntimeException("Invalid permision="+p);
+	@Test
+	@Order(4)
+	public void testAppend() throws IOException {
+		FileSource remoteDir = factory.createFileSource(remoteTestFileDirPath);
+		if( !remoteDir.exists()) {
+			assertTrue(remoteDir.mkdirs(),"Can't create dirs for "+remoteTestFileDirPath);
 		}
-		
-		return ret;
-	}
-	
-	public static void comparePermissions(FileSource file1, FileSource file2) throws IOException {
-		assertEquals(file1.canOwnerRead(), file2.canOwnerRead(),"canOwnerRead()");
-		assertEquals(file1.canOwnerWrite(), file2.canOwnerWrite(),"canOwnerWrite()");
-		assertEquals(file1.canOwnerExecute(), file2.canOwnerExecute(),"canOwnerExecute()");
-		
-		assertEquals(file1.canGroupRead(), file2.canGroupRead(),"canGroupRead()");
-		assertEquals(file1.canGroupWrite(), file2.canGroupWrite(),"canGroupWrite()");
-		assertEquals(file1.canGroupExecute(), file2.canGroupExecute(),"canGroupExecute()");
-		
-		assertEquals(file1.canOtherRead(), file2.canOtherRead(),"canOtherRead()");
-		assertEquals(file1.canOtherWrite(), file2.canOtherWrite(),"canOtherWrite()");
-		assertEquals(file1.canOtherExecute(), file2.canOtherExecute(),"canOtherExecute()");
-		
-		
-	}
-	
-	public static boolean getPermission(Permissions p, FileSource file) throws IOException {
-		boolean ret = false;
-		switch (p) {
-		case OwnerRead:    ret = file.canOwnerRead(); break;
-		case OwnerWrite:   ret = file.canOwnerWrite(); break;
-		case OwnerExecute: ret = file.canOwnerExecute(); break;
-		
-		case GroupRead:    ret = file.canGroupRead(); break;
-		case GroupWrite:   ret = file.canGroupWrite(); break;
-		case GroupExecute: ret = file.canGroupExecute(); break;
-		
-		case OtherRead:    ret = file.canOtherRead(); break;
-		case OtherWrite:   ret = file.canOtherWrite(); break;
-		case OtherExecute: ret = file.canOtherExecute(); break;
-		
-		default:
-			throw new RuntimeException("Invalid permision="+p);			
+		FileSource file = remoteDir.getChild("AppendTest.txt");
+		byte [] data = "0123456789".getBytes();
+		try {
+			try(OutputStream out = file.getOutputStream()) {
+				for(int idx=0; idx< 10; idx++ ) {
+					out.write(data);
+				}
+			}
+			assertEquals(data.length*10, file.length(),"length after write");
+
+			try(OutputStream out = file.getOutputStream(true)) {
+				for(int idx=0; idx< 10; idx++ ) {
+					out.write(data);
+				}
+			}
+			assertEquals(data.length*20, file.length(),"length after append");
+
+			assertArrayEquals(data, file.head(data.length),"head");
+			assertArrayEquals(data, file.tail(data.length),"tail");
+		} finally {
+			if( file.exists()) {
+				assertTrue(file.delete(),"Can't delete "+file);
+			}
 		}
-		return ret;
-	}
-	
-	public static void changeAndValidatePermission(Permissions p, FileSource file) throws IOException {
-		
-		//Get the current value		
-		boolean b = getPermission(p, file);
-		
-		// toggle it 
-		assertTrue(
-				setPermission(p, file, !b),
-				"set permission failed p="+p);
-		boolean b2 = getPermission(p, file);
-		assertEquals(b2, !b,"permision did not change p="+p);
-		
-		// Set it back
-		assertTrue(
-				setPermission(p, file, b),
-				"reset permission failed p="+p);		
-		assertEquals(getPermission(p, file), b,"permision did not change back to original p="+p);
-		
-		
 	}
 
 
@@ -570,30 +250,6 @@ public abstract class AbstractTestClass {
 		} finally {
 			if( base.exists() ) {
 				deleteAll(base);
-			}
-		}
-	}
-
-	private static void write(FileSource file, String text) throws IOException {
-		try(OutputStream out = file.getOutputStream()) {
-			out.write(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-		}
-	}
-
-	/**
-	 * Fails if cls (or a superclass) declares isChildOfMine: every FileSource must use the
-	 * single implementation in FileSource.
-	 */
-	public static void assertNoIsChildOfMineOverride(Class<?> cls) {
-		if( java.lang.reflect.Proxy.isProxyClass(cls) ) {
-			return;   // proxies forward to a real FileSource
-		}
-		for(Class<?> c = cls; c != null && c != Object.class; c = c.getSuperclass()) {
-			for(java.lang.reflect.Method m : c.getDeclaredMethods()) {
-				if( m.getName().equals("isChildOfMine") && !m.isSynthetic() ) {
-					throw new AssertionError(c.getName()+" overrides isChildOfMine; FileSource has the one implementation."
-							+" Provide a correct getCanonicalPath() instead.");
-				}
 			}
 		}
 	}

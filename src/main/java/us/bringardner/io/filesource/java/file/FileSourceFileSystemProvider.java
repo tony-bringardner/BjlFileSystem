@@ -607,6 +607,10 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 		validate(dir);
 		FileSource file = ((FileSourcePath)dir).getFileSource();
 
+		// Files.createDirectories relies on this to accept an existing directory
+		if( file.exists()) {
+			throw new FileAlreadyExistsException(dir.toString());
+		}
 		if(!file.mkdirs()) {
 			throw new ProviderException("Could not create directory for "+dir);
 		}
@@ -964,10 +968,9 @@ public class FileSourceFileSystemProvider extends FileSystemProvider {
 			if( name.equals("*")) {
 				for(Method m : cls.getMethods()) {
 					if( m.getParameterCount() == 0 ) {
-						Object v = invoke(m, attr);
-						if( v != null ) {
-							ret.put(m.getName(), v);
-						}
+						// null values too (fileKey can be null), as for a named
+						// attribute and as the JDK's own providers do
+						ret.put(m.getName(), invoke(m, attr));
 					}
 				}
 			} else {

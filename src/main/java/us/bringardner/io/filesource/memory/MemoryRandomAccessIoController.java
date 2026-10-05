@@ -183,6 +183,10 @@ public class MemoryRandomAccessIoController implements IRandomAccessIoController
 	@Override
 	public synchronized void setLength(long newLength) throws IOException {
 		ensureCapacity((int)newLength);
+		if( newLength < size ) {
+			// past the end must read as zeros if the file grows again
+			Arrays.fill(data, (int)newLength, size, (byte)0);
+		}
 		size = (int)newLength;
 		isDirty = true;
 		// this impacts the file now....

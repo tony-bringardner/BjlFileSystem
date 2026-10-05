@@ -118,6 +118,23 @@
 				<version>3.5.2</version>
 			</plugin>
 
+			<!-- The shared FileSource test suite (us.bringardner.io.filesource.test)
+			     as bjl_file_system-<version>-tests.jar. Implementations use it with
+			     <type>test-jar</type><scope>test</scope>, so it's never on a
+			     runtime classpath. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>3.4.2</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>test-jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
 			<!-- Test coverage: 'mvn test' writes the report to
 			     target/site/jacoco/index.html (also jacoco.xml and jacoco.csv). -->
 			<plugin>

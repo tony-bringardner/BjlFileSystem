@@ -1,6 +1,7 @@
 package us.bringardner.io.filesource.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -15,47 +16,49 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 
 import us.bringardner.io.filesource.FileSource;
-import us.bringardner.io.filesource.FileSourceFactory;
 import us.bringardner.io.filesource.IRandomAccessIoController;
-import us.bringardner.io.filesource.fileproxy.FileProxy;
-import us.bringardner.io.filesource.fileproxy.FileProxyRandomAccessIoController;
-import us.bringardner.io.filesource.memory.MemoryFileSource;
-import us.bringardner.io.filesource.memory.MemoryRandomAccessIoController;
 
 
+/**
+ * A factory's IRandomAccessIoController, the layer under
+ * FileSourceRandomAccessStream. A subclass sets the fields of
+ * FileSourceTestSupport in its @BeforeAll and creates the controller.
+ */
 @TestMethodOrder(OrderAnnotation.class)
-public abstract class FileSourceRandomAccessIoBufferTests {
+public abstract class FileSourceRandomAccessIoBufferTests extends FileSourceTestSupport {
 
+	protected static long targetFileSize=1000;
+	protected static String testDataString = "0123456789";
+	protected static byte [] testData = testDataString.getBytes();
+	private static FileSource file;
+	private static FileSource testDir;
 
+	/** A read/write controller for file. */
+	protected abstract IRandomAccessIoController getRandomAccessFileStream(FileSource file) throws IOException;
 
-	static FileSourceFactory factory;
-	static long targetFileSize=1000;
-	static String testDataString = "0123456789";
-	static byte [] testData = testDataString.getBytes();
-	static FileSource file;
-	static FileSource testDir;
-
-	IRandomAccessIoController getRandomAccessFileStream(FileSource file) throws IOException {
-		if (file instanceof MemoryFileSource) {
-			MemoryFileSource mfs = (MemoryFileSource) file;
-			return new MemoryRandomAccessIoController(mfs);
-		} else if (file instanceof FileProxy) {
-			FileProxy fp = (FileProxy)file;
-			return new FileProxyRandomAccessIoController(fp, "rw");
+	private static FileSource testDir() throws IOException {
+		if( testDir == null ) {
+			testDir = factory.createFileSource(remoteTestFileDirPath).getChild("RandomAccessIoBuffer");
+			if( !testDir.exists()) {
+				assertTrue(testDir.mkdirs(),"Can't create "+testDir);
+			}
 		}
-		throw new RuntimeException("Can't create io controller for "+file.getClass());
+		return testDir;
 	}
-	
 
 	@AfterAll
-	public static void teardown() throws IOException {
-		factory.disConnect();
+	public static void deleteIoBufferTestDir() throws IOException {
+		if( testDir != null ) {
+			deleteAllAndEmptyParent(testDir);
+		}
+		testDir = null;
+		file = null;
 	}
 
 	@Test
 	@Order(1)
 	public void testCreateFile() throws IOException {
-		file = testDir.getChild("RamIoBuffer.txt");
+		file = testDir().getChild("RamIoBuffer.txt");
 		int cnt = 0;
 
 		try(OutputStream out = file.getOutputStream()) {
@@ -63,46 +66,48 @@ public abstract class FileSourceRandomAccessIoBufferTests {
 				out.write(testData);
 				cnt+=testData.length;
 			}
-		}		
+		}
 
 	}
 
 	@Test
 	@Order(2)
 	public void testSeekAndRead() throws IOException {
-		long pointer = 0;
 		long len = file.length();
 		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
-			while( pointer < len) {
-				int idx = ((int)pointer) % testData.length;
-				int expect = testData[idx];
-				int i = buf.read(pointer++);
+			assertEquals(len, buf.length(),"Start lengths do not match");
+			// forward
+			for(long pointer = 0; pointer < len; pointer++) {
+				int expect = testData[(int)(pointer % testData.length)];
+				int i = buf.read(pointer);
 				assertEquals((char)expect, (char)i,"Read not correct pointer="+pointer);
 			}
+			// backward
+			for(long pointer = len-1; pointer >= 0; pointer--) {
+				int expect = testData[(int)(pointer % testData.length)];
+				int i = buf.read(pointer);
+				assertEquals((char)expect, (char)i,"Backward read not correct pointer="+pointer);
+			}
+		} catch (IOException e) {
+			throw e;
 		} catch (Exception e) {
 			throw new IOException(e);
 		}
 		//  do some random reads
 		Random r = new Random();
-		int tries = 0;
-		int doTries = 40;
 		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
-			while(tries < doTries) {
+			for(int tries = 0; tries < 40; tries++) {
 				long pos = r.nextInt((int)len);
-				int idx = ((int)pos) % testData.length;
-				int expect = testData[idx];
+				int expect = testData[((int)pos) % testData.length];
 				int i = buf.read(pos);
 				assertEquals((char)expect, (char)i,"Read not correct pos="+pos);
-				tries ++;
 			}
+		} catch (IOException e) {
+			throw e;
 		} catch (Exception e) {
 			throw new IOException(e);
 		}
-		//System.out.println("testSeekAndRead  Done");
 	}
-
-
-	
 
 	@Test
 	@Order(3)
@@ -111,43 +116,40 @@ public abstract class FileSourceRandomAccessIoBufferTests {
 		Random r = new Random();
 		Map<Long,Integer> changes = new HashMap<>();
 		byte data [] = "abcdefghij".getBytes();
-		
-		int tries = 0;
-		int doTries = 40;
-		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
-			while(tries < doTries) {
-				long pos = r.nextInt((int)len);
-				int idx = ((int)pos) % data.length;
-				int expect = testData[idx];
-				buf.write(pos, (byte) expect);
-				changes.put(pos, expect);
-				tries ++;
-			}
-		} catch (Exception e) {
-			throw new IOException(e);
-		}
-		
-		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
-			for(long pos : changes.keySet()) {
-				int idx = ((int)pos) % data.length;
-				int expect = testData[idx];
-				int i = buf.read(pos);
-				assertEquals((char)expect, (char)i,"Changed Read not correct pos="+pos);				
-			}
-		} catch (Exception e) {
-			throw new IOException(e);
-		}
-		
 
-		//System.out.println("done with testSeekAndWrite");
-		
+		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
+			for(int tries = 0; tries < 40; tries++) {
+				long pos = r.nextInt((int)len);
+				int value = data[((int)pos) % data.length];
+				buf.write(pos, (byte) value);
+				assertEquals((char)value, (char)buf.read(pos),"Read after write not correct pos="+pos);
+				changes.put(pos, value);
+			}
+		} catch (IOException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new IOException(e);
+		}
+
+		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
+			for(long pos = 0; pos < len; pos++) {
+				Integer changed = changes.get(pos);
+				int expect = changed != null ? changed : testData[((int)pos) % testData.length];
+				int i = buf.read(pos);
+				assertEquals((char)expect, (char)i,(changed != null ? "Changed":"Unchanged")+" read not correct pos="+pos);
+			}
+		} catch (IOException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new IOException(e);
+		}
 	}
-	
+
 	@Test
 	@Order(4)
 	public void testWritePastEnd() throws IOException {
 		long len = file.length();
-		
+
 		try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
 			long blen = buf.length();
 			assertEquals(len, blen,"Starting lengths do not match");
@@ -157,29 +159,29 @@ public abstract class FileSourceRandomAccessIoBufferTests {
 			buf.save();
 			long len2 = file.length();
 			assertEquals(blen,len2,"Add 10 file lengths do not match");
-			
+
+		} catch (IOException e) {
+			throw e;
 		} catch (Exception e) {
 			throw new IOException(e);
 		}
-	
+
 		 len = file.length();
-		
+
 		 try(IRandomAccessIoController buf = getRandomAccessFileStream(file)){
 			buf.setLength(len+150);
 			long len2 = file.length();
 			assertEquals(len+150,len2,"set len +150 file lengths do not match");
-			
+
 			buf.setLength(len+10);
 			long len3 = file.length();
 			assertEquals(len+10,len3,"set back to len file lengths do not match");
-			
+
+		} catch (IOException e) {
+			throw e;
 		} catch (Exception e) {
 			throw new IOException(e);
 		}
-	
-		
-		//System.out.println("done with testWritePastEnd");
-		
 	}
-	
+
 }
