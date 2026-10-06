@@ -178,6 +178,38 @@ public abstract class AbstractTestClass extends FileSourceTestSupport {
 	}
 
 
+	/** As java.io.File.mkdir: one level, false if it exists or the parent doesn't. */
+	@Test
+	@Order(5)
+	public void testMkdir() throws IOException {
+		FileSource base = factory.createFileSource(remoteTestFileDirPath).getChild("mkdirTest");
+		if( base.exists()) {
+			deleteAll(base);
+		}
+		try {
+			assertTrue(base.mkdirs(), "Can't create "+base);
+
+			FileSource dir = base.getChild("dir");
+			assertFalse(dir.exists(), dir+" exists before mkdir");
+			assertTrue(dir.mkdir(), "mkdir of a new directory");
+			assertTrue(dir.exists(), "exists after mkdir");
+			assertTrue(dir.isDirectory(), "isDirectory after mkdir");
+			assertTrue(factory.createFileSource(dir.getAbsolutePath()).isDirectory(), "a new FileSource sees it");
+			FileSource[] kids = base.listFiles();
+			assertEquals(1, kids == null ? 0 : kids.length, "the parent's listing has it");
+
+			assertFalse(dir.mkdir(), "mkdir of an existing directory");
+
+			FileSource deep = base.getChild("missing").getChild("dir");
+			assertFalse(deep.mkdir(), "mkdir under a missing parent");
+			assertFalse(deep.exists(), "nothing made under a missing parent");
+		} finally {
+			if( base.exists()) {
+				deleteAll(base);
+			}
+		}
+	}
+
 	// ------------------------------------------------------------------ isChildOfMine contract
 	//
 	// Runs for every factory whose test class extends this one. The rule itself lives in

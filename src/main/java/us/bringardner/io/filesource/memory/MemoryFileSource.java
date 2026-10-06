@@ -516,7 +516,9 @@ public class MemoryFileSource implements FileSource {
 	 */
 	public boolean mkdir()  {
 		synchronized (lock()) {
-			if( isFile() ) {
+			// as java.io.File: false if it already exists (this also reset an
+			// existing directory's owner permissions)
+			if( isFile() || isDirectory() ) {
 				return false;
 			}
 			if(parent!=null && !parent.exists()) {
@@ -535,6 +537,9 @@ public class MemoryFileSource implements FileSource {
 	 */
 	public boolean mkdirs() throws IOException {
 		synchronized (lock()) {
+			if( isDirectory() ) {
+				return true;
+			}
 			boolean ret = false;
 			if( parent != null ) {
 				ret = parent.mkdirs();			
